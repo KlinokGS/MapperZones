@@ -1,0 +1,3 @@
+pluginManagement { repositories { gradlePluginPortal(); maven { url = 'https://maven.minecraftforge.net/' } } }
+dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_PROJECT); repositories { maven { url = 'https://maven.minecraftforge.net/' }; mavenCentral() } }
+rootProject.name = 'MapperZones'

@@ -1,0 +1,21 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+[[mods]]
+modId="mapperzones"
+version="1.0.0"
+displayName="Mapper Zones"
+authors="Mapper Zones contributors"
+description='''Server-authoritative trigger zones, conditions, actions, and variables for adventure maps.'''
+[[dependencies.mapperzones]]
+modId="forge"
+mandatory=true
+versionRange="[47.2.0,48)"
+ordering="NONE"
+side="BOTH"
+[[dependencies.mapperzones]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.20.2)"
+ordering="NONE"
+side="BOTH"
