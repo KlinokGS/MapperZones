@@ -28,6 +28,7 @@ The included `gradlew.bat` bootstraps Gradle 8.8 if it is not already cached. It
 - `/mapperzones condition <name> <condition...>` — append a condition.
 - `/mapperzones var set <global|player> <name> <value...>` — set a variable.
 - `/mapperzones var get <global|player> <name>` and `/mapperzones var add <global|player> <name> <amount>`.
+- `/mapperzones var remove <global|player> <name>` — remove a variable.
 
 ## Selection and action syntax
 Use the wand on two blocks to select opposite corners. Then run `/mapperzones create <name>`.
@@ -44,7 +45,20 @@ Action strings supported by the action executor:
 - `redstone:<x> <y> <z> <ticks>` — temporarily sets a redstone block and restores the previous block
 - `zone:enable <zone>` / `zone:disable <zone>` / `zone:reset <zone>`
 
-Conditions are conjunctive. Supported forms include `health >= 10`, `level >= 5`, `item minecraft:diamond`, `team <name>`, `var <scope> <name> <operator> <value>`, `time <operator> <ticks>`, `weather clear|rain|thunder`, and `dim <namespace:dimension>`.
+Each condition line is ANDed with the other lines. Expression lines support comparisons (`==`, `!=`, `>`, `<`, `>=`, `<=`), logical operators (`&&`, `||`), parentheses and quoted strings. Prefer the `player.` prefix for player properties:
+
+- `player.health >= 10`, `player.max_health == 20`
+- `player.food >= 6 && player.health < player.max_health`
+- `player.name == "Steve"`
+- `player.dimension == "minecraft:overworld"`
+- `player.level >= 5`, `player.experience > 0.5`, `player.saturation >= 3`
+- `player.absorption > 0`, `player.armor >= 10`, `player.air < player.max_air`
+- `player.x >= 0`, `player.y < 80`, `player.z != 0`
+- Boolean properties: `player.on_ground`, `player.sprinting`, `player.sneaking`, `player.alive`, `player.in_water`, `player.underwater`, `player.invisible`, `player.sleeping`
+- `player.uuid == "..."`, `player.team == "red"`
+- Custom personal variables can still be referenced as `player.quest == "started"`; global variables as `global.score >= 5`.
+
+Legacy forms remain supported: `health >= 10`, `level >= 5`, `item minecraft:diamond`, `team <name>`, `var <scope> <name> <operator> <value>`, `time <operator> <ticks>`, `weather clear|rain|thunder`, and `dim <namespace:dimension>`. The wand renderer displays each zone name above its boundary while the wand is held; disabled zones are marked `[OFF]`.
 
 Text supports `${name}` for global variables and `${player.name}` for the current player's personal variables.
 

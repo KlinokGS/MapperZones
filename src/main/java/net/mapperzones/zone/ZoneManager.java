@@ -138,77 +138,212 @@ public final class ZoneManager {
     }
 
     public static boolean conditionsPass(TriggerZone z, ServerPlayer p, MapperData d) {
+        // Each configured line is an independent requirement; expressions within a line may use && and ||.
         for (String raw : z.conditions) {
             String c = raw.trim();
-
             if (c.isEmpty()) continue;
             try {
+                // Preserve the original shorthand conditions for existing zone files.
                 String[] a = c.split("\\s+", 5);
+                if (!c.contains("&&") && !c.contains("||")) {
                 switch (a[0].toLowerCase(Locale.ROOT)) {
-                    case "health" -> {
-                        if (a.length < 3 || !compare(p.getHealth(), a[1], Double.parseDouble(a[2]))) return false;
-                    }
-                    case "level" -> {
-                        if (a.length < 3 || !compare(p.experienceLevel, a[1], Double.parseDouble(a[2]))) return false;
-                    }
                     case "item" -> {
                         if (a.length < 2) return false;
                         ResourceLocation id = ResourceLocation.tryParse(a[1]);
-                        if (id == null) return false;
-                        var item = BuiltInRegistries.ITEM.get(id);
+                        if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) return false;
                         boolean found = p.getInventory().items.stream().anyMatch(st -> !st.isEmpty() && BuiltInRegistries.ITEM.getKey(st.getItem()).equals(id));
                         if (!found) return false;
+                        continue;
                     }
                     case "team" -> {
                         if (a.length < 2 || p.getTeam() == null || !p.getTeam().getName().equals(a[1])) return false;
-                    }
-                    case "var" -> {
-                        if (a.length < 5) return false;
-                        String val = d.variable(p.getUUID(), a[1].equalsIgnoreCase("player") ? "player." + a[2] : a[2]);
-                        String op = a[3], rhs = String.join(" ", Arrays.copyOfRange(a, 4, a.length));
-                        boolean ok;
-                        try {
-                            ok = compare(Double.parseDouble(val), op, Double.parseDouble(rhs));
-                        } catch (Exception ex) {
-                            int cmp = val.compareTo(rhs);
-                            ok = switch (op) {
-                                case "==" -> val.equals(rhs);
-                                case "!=" -> !val.equals(rhs);
-                                case ">" -> cmp > 0;
-                                case "<" -> cmp < 0;
-                                case ">=" -> cmp >= 0;
-                                case "<=" -> cmp <= 0;
-                                default -> false;
-                            };
-                        }
-                        if (!ok) return false;
+                        continue;
                     }
                     case "time" -> {
-                        if (a.length < 3 || !compare(p.level().getDayTime() % 24000, a[1], Double.parseDouble(a[2])))
-                            return false;
+                        if (a.length < 3 || !compare(p.level().getDayTime() % 24000, a[1], Double.parseDouble(a[2]))) return false;
+                        continue;
                     }
                     case "weather" -> {
                         if (a.length < 2) return false;
-                        boolean ok = switch (a[1]) {
+                        boolean ok = switch (a[1].toLowerCase(Locale.ROOT)) {
                             case "clear" -> !p.level().isRaining();
                             case "rain" -> p.level().isRaining() && !p.level().isThundering();
                             case "thunder" -> p.level().isThundering();
                             default -> false;
                         };
                         if (!ok) return false;
+                        continue;
                     }
                     case "dim" -> {
                         if (a.length < 2 || !p.level().dimension().location().toString().equals(a[1])) return false;
+                        continue;
                     }
-                    default -> {
-                        return false;
+                    case "var" -> {
+                        if (a.length < 5) return false;
+                        String val = d.variable(p.getUUID(), a[1].equalsIgnoreCase("player") ? "player." + a[2] : a[2]);
+                        String op = a[3], rhs = String.join(" ", Arrays.copyOfRange(a, 4, a.length));
+                        if (!compareValues(val, op, rhs)) return false;
+                        continue;
                     }
+                    default -> { /* New expression syntax below. */ }
                 }
+                }
+                if (!new ConditionParser(c, p, d).parse()) return false;
             } catch (Exception ex) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean compareValues(String left, String op, String right) {
+        try { return compare(Double.parseDouble(left), op, Double.parseDouble(right)); }
+        catch (NumberFormatException ignored) {
+            int cmp = left.compareTo(right);
+            return switch (op) {
+                case "==" -> left.equals(right);
+                case "!=" -> !left.equals(right);
+                case ">" -> cmp > 0;
+                case "<" -> cmp < 0;
+                case ">=" -> cmp >= 0;
+                case "<=" -> cmp <= 0;
+                default -> false;
+            };
+        }
+    }
+
+    /** Small expression parser for player/global variables, comparisons, parentheses, && and ||. */
+    private static final class ConditionParser {
+        private static final java.util.regex.Pattern TOKEN = java.util.regex.Pattern.compile(
+                "\\s*(>=|<=|==|!=|&&|\\|\\||[()!<>]|\"(?:\\\\.|[^\"])*\"|'(?:\\\\.|[^'])*'|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)|[A-Za-z_][A-Za-z0-9_./:-]*)");
+        private final List<String> tokens = new ArrayList<>();
+        private final ServerPlayer player;
+        private final MapperData data;
+        private int index;
+
+        ConditionParser(String expression, ServerPlayer player, MapperData data) {
+            this.player = player;
+            this.data = data;
+            expression = expression.trim();
+            java.util.regex.Matcher matcher = TOKEN.matcher(expression);
+            int end = 0;
+            while (end < expression.length()) {
+                matcher.region(end, expression.length());
+                if (!matcher.lookingAt()) throw new IllegalArgumentException("Unexpected token near: " + expression.substring(end));
+                tokens.add(matcher.group(1));
+                end = matcher.end();
+            }
+            if (tokens.isEmpty()) throw new IllegalArgumentException("Empty condition");
+        }
+
+        boolean parse() {
+            boolean result = parseOr();
+            if (index != tokens.size()) throw new IllegalArgumentException("Unexpected token: " + tokens.get(index));
+            return result;
+        }
+
+        private boolean parseOr() {
+            boolean value = parseAnd();
+            while (take("||")) { boolean right = parseAnd(); value = value || right; }
+            return value;
+        }
+
+        private boolean parseAnd() {
+            boolean value = parseComparison();
+            while (take("&&")) { boolean right = parseComparison(); value = value && right; }
+            return value;
+        }
+
+        private boolean parseComparison() {
+            Object left = parseAtom();
+            if (index < tokens.size() && Set.of("==", "!=", ">", "<", ">=", "<=").contains(tokens.get(index))) {
+                String op = tokens.get(index++);
+                Object right = parseAtom();
+                return compareObjects(left, op, right);
+            }
+            return truthy(left);
+        }
+
+        private Object parseAtom() {
+            if (take("!")) return !truthy(parseAtom());
+            if (take("(")) {
+                boolean value = parseOr();
+                if (!take(")")) throw new IllegalArgumentException("Missing closing parenthesis");
+                return value;
+            }
+            if (index >= tokens.size()) throw new IllegalArgumentException("Expected value");
+            String token = tokens.get(index++);
+            if ((token.startsWith("\"") && token.endsWith("\"")) || (token.startsWith("'") && token.endsWith("'")))
+                return token.substring(1, token.length() - 1).replace("\\\"", "\"").replace("\\'", "'");
+            if (token.equalsIgnoreCase("true")) return true;
+            if (token.equalsIgnoreCase("false")) return false;
+            try { return Double.parseDouble(token); } catch (NumberFormatException ignored) { }
+            return resolve(token);
+        }
+
+        private Object resolve(String key) {
+            String k = key.toLowerCase(Locale.ROOT);
+            return switch (k) {
+                // Backwards-compatible aliases.
+                case "health", "player.health" -> (double) player.getHealth();
+                case "max_health", "player.max_health" -> (double) player.getMaxHealth();
+                case "absorption", "player.absorption" -> (double) player.getAbsorptionAmount();
+                case "food", "player.food" -> (double) player.getFoodData().getFoodLevel();
+                case "saturation", "player.saturation" -> (double) player.getFoodData().getSaturationLevel();
+                case "level", "player.level" -> (double) player.experienceLevel;
+                case "player.experience" -> (double) player.experienceProgress;
+                case "player.name" -> player.getGameProfile().getName();
+                case "player.gamemode" -> player.gameMode.getGameModeForPlayer().getName();
+                case "player.uuid" -> player.getUUID().toString();
+                case "player.x" -> player.getX();
+                case "player.y" -> player.getY();
+                case "player.z" -> player.getZ();
+                case "player.dimension" -> player.level().dimension().location().toString();
+                case "player.armor" -> (double) player.getArmorValue();
+                case "player.air" -> (double) player.getAirSupply();
+                case "player.max_air" -> (double) player.getMaxAirSupply();
+                case "player.on_ground" -> player.onGround();
+                case "player.sprinting" -> player.isSprinting();
+                case "player.sneaking" -> player.isCrouching();
+                case "player.alive" -> player.isAlive();
+                case "player.in_water" -> player.isInWater();
+                case "player.underwater" -> player.isUnderWater();
+                case "player.invisible" -> player.isInvisible();
+                case "player.sleeping" -> player.isSleeping();
+                case "player.team" -> player.getTeam() == null ? "" : player.getTeam().getName();
+                case "time" -> (double) (player.level().getDayTime() % 24000);
+                case "dimension", "dim" -> player.level().dimension().location().toString();
+                case "weather" -> player.level().isThundering() ? "thunder" : player.level().isRaining() ? "rain" : "clear";
+                default -> {
+                    String value = data.variable(player.getUUID(), key);
+                    if (value.isEmpty() && !k.startsWith("player.") && !k.startsWith("global.")) yield key;
+                    if (k.startsWith("global.")) value = data.globalVars.getOrDefault(key.substring(7), "");
+                    yield value;
+                }
+            };
+        }
+
+        private boolean compareObjects(Object left, String op, Object right) {
+            if (left instanceof Boolean || right instanceof Boolean) {
+                boolean l = truthy(left), r = truthy(right);
+                return switch (op) { case "==" -> l == r; case "!=" -> l != r; default -> false; };
+            }
+            if (left instanceof Number ln && right instanceof Number rn)
+                return compare(ln.doubleValue(), op, rn.doubleValue());
+            String l = String.valueOf(left), r = String.valueOf(right);
+            return compareValues(l, op, r);
+        }
+
+        private boolean truthy(Object value) {
+            if (value instanceof Boolean b) return b;
+            if (value instanceof Number n) return n.doubleValue() != 0.0;
+            return value != null && !String.valueOf(value).isEmpty() && !String.valueOf(value).equalsIgnoreCase("false");
+        }
+
+        private boolean take(String expected) {
+            if (index < tokens.size() && tokens.get(index).equals(expected)) { index++; return true; }
+            return false;
+        }
     }
 
     private static boolean compare(double x, String op, double y) {

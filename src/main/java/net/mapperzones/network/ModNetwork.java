@@ -30,6 +30,7 @@ public final class ModNetwork {
         CHANNEL.registerMessage(id++, SaveZone.class, SaveZone::encode, SaveZone::decode, SaveZone::handle);
         CHANNEL.registerMessage(id++, DeleteZone.class, DeleteZone::encode, DeleteZone::decode, DeleteZone::handle);
         CHANNEL.registerMessage(id++, SetVariable.class, SetVariable::encode, SetVariable::decode, SetVariable::handle);
+        CHANNEL.registerMessage(id++, RemoveVariable.class, RemoveVariable::encode, RemoveVariable::decode, RemoveVariable::handle);
         CHANNEL.registerMessage(id++, RequestSync.class, RequestSync::encode, RequestSync::decode, RequestSync::handle);
     }
 
@@ -172,6 +173,29 @@ public final class ModNetwork {
         }
     }
 
+    public record RemoveVariable(String scope, String name) {
+        static void encode(RemoveVariable m, FriendlyByteBuf b) { b.writeUtf(m.scope, 16); b.writeUtf(m.name, 128); }
+        static RemoveVariable decode(FriendlyByteBuf b) { return new RemoveVariable(b.readUtf(16), b.readUtf(128)); }
+        static void handle(RemoveVariable m, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> {
+                ServerPlayer p = c.get().getSender();
+                if (p == null || !p.hasPermissions(2)) return;
+                MapperData d = MapperData.get(p.serverLevel());
+                boolean removed;
+                if (m.scope.equals("global")) removed = d.globalVars.remove(m.name) != null;
+                else if (m.scope.equals("player")) {
+                    Map<String,String> vars = d.playerVars.get(p.getUUID());
+                    removed = vars != null && vars.remove(m.name) != null;
+                    if (vars != null && vars.isEmpty()) d.playerVars.remove(p.getUUID());
+                } else return;
+                if (removed) d.dirty();
+                sync(p);
+                p.sendSystemMessage(Component.literal(removed ? "Removed variable " + m.name : "Variable not found: " + m.name));
+            });
+            c.get().setPacketHandled(true);
+        }
+    }
+
     public record RequestSync() {
         static void encode(RequestSync m, FriendlyByteBuf b) {
         }
@@ -200,6 +224,8 @@ public final class ModNetwork {
     public static void setVariable(String scope, String name, String value) {
         CHANNEL.sendToServer(new SetVariable(scope, name, value));
     }
+
+    public static void removeVariable(String scope, String name) { CHANNEL.sendToServer(new RemoveVariable(scope, name)); }
 
     public static void requestSync() {
         CHANNEL.sendToServer(new RequestSync());

@@ -1,0 +1,158 @@
+package net.mapperzones.client;
+
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Consumer;
+
+/** Single multiline editor with a command-block-like syntax preview. */
+public final class ZoneTextEditorScreen extends Screen {
+    private final Screen parent;
+    private final String kind;
+    private final Consumer<String> onSave;
+    private final StringBuilder text = new StringBuilder();
+    private int cursor;
+    private int firstVisibleLine;
+    private int areaX, areaY, areaW, areaH;
+    private boolean focused = true;
+
+    public ZoneTextEditorScreen(Screen parent, String kind, String initial, Consumer<String> onSave) {
+        super(Component.translatable(titleKey(kind)));
+        this.parent = parent;
+        this.kind = kind;
+        this.onSave = onSave;
+        if (initial != null) text.append(initial.replace("\r", ""));
+        cursor = text.length();
+    }
+
+    private static String titleKey(String k) {
+        return switch (k) { case "enter" -> "screen.mapperzones.enter_title"; case "exit" -> "screen.mapperzones.exit_title"; case "stay" -> "screen.mapperzones.stay_title"; default -> "screen.mapperzones.condition_title"; };
+    }
+
+    @Override protected void init() {
+        int margin = 18;
+        areaX = margin; areaY = 64; areaW = width - margin * 2; areaH = Math.max(60, height - 158);
+        int bottom = height - 27;
+        addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.syntax_help"), b -> {
+            if (kind.equals("conditions")) {
+                minecraft.setScreen(new ConditionHelpScreen(this));
+            } else {
+                minecraft.setScreen(new ActionBuilderScreen(this));
+            }
+        }).bounds(margin, bottom, Math.min(100, Math.max(76, areaW / 5)), 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.save"), b -> {
+            onSave.accept(text.toString()); minecraft.setScreen(parent);
+        }).bounds(width - margin - 142, bottom, 68, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.back"), b -> minecraft.setScreen(parent))
+                .bounds(width - margin - 68, bottom, 68, 20).build());
+    }
+
+    private void insert(String value) {
+        text.insert(cursor, value); cursor += value.length(); ensureCursorVisible();
+    }
+
+    private int lineStart(int pos) { int p = Math.min(pos, text.length()); while (p > 0 && text.charAt(p - 1) != '\n') p--; return p; }
+    private int lineEnd(int pos) { int p = Math.min(pos, text.length()); while (p < text.length() && text.charAt(p) != '\n') p++; return p; }
+    private int lineNumber(int pos) { int n=0; for(int i=0;i<Math.min(pos,text.length());i++) if(text.charAt(i)=='\n') n++; return n; }
+    private List<String> lines() {
+        List<String> out = new ArrayList<>();
+        String[] split = text.toString().split("\n", -1);
+        for (String s : split) out.add(s);
+        return out;
+    }
+    private void ensureCursorVisible() {
+        int visible = Math.max(1, (areaH - 12) / font.lineHeight);
+        int line = lineNumber(cursor);
+        if (line < firstVisibleLine) firstVisibleLine = line;
+        else if (line >= firstVisibleLine + visible) firstVisibleLine = line - visible + 1;
+        firstVisibleLine = Math.max(0, firstVisibleLine);
+    }
+
+    @Override public boolean charTyped(char ch, int modifiers) {
+        if (!focused || Character.isISOControl(ch)) return super.charTyped(ch, modifiers);
+        if (text.length() < 32760) { text.insert(cursor, ch); cursor++; ensureCursorVisible(); }
+        return true;
+    }
+
+    @Override public boolean keyPressed(int key, int scanCode, int modifiers) {
+        if (key == GLFW.GLFW_KEY_ESCAPE) { minecraft.setScreen(parent); return true; }
+        if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { insert("\n"); return true; }
+        if (key == GLFW.GLFW_KEY_BACKSPACE) {
+            if (cursor > 0) { text.deleteCharAt(cursor - 1); cursor--; ensureCursorVisible(); } return true;
+        }
+        if (key == GLFW.GLFW_KEY_DELETE) {
+            if (cursor < text.length()) text.deleteCharAt(cursor); return true;
+        }
+        if (key == GLFW.GLFW_KEY_LEFT) { if(cursor>0)cursor--; ensureCursorVisible(); return true; }
+        if (key == GLFW.GLFW_KEY_RIGHT) { if(cursor<text.length())cursor++; ensureCursorVisible(); return true; }
+        if (key == GLFW.GLFW_KEY_HOME) { cursor=lineStart(cursor); return true; }
+        if (key == GLFW.GLFW_KEY_END) { cursor=lineEnd(cursor); return true; }
+        if (key == GLFW.GLFW_KEY_UP || key == GLFW.GLFW_KEY_DOWN) {
+            int start=lineStart(cursor), col=cursor-start;
+            if(key==GLFW.GLFW_KEY_UP && start>0) { int prevEnd=start-1, prevStart=lineStart(prevEnd); cursor=Math.min(prevStart+col,prevEnd); }
+            else if(key==GLFW.GLFW_KEY_DOWN) { int end=lineEnd(cursor); if(end<text.length()) cursor=Math.min(end+1+col,lineEnd(end+1)); }
+            ensureCursorVisible(); return true;
+        }
+        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && key == GLFW.GLFW_KEY_A) { cursor=text.length(); return true; }
+        return super.keyPressed(key, scanCode, modifiers);
+    }
+
+    @Override public boolean mouseClicked(double mx, double my, int button) {
+        if (button == 0 && mx >= areaX && mx <= areaX + areaW && my >= areaY && my <= areaY + areaH) {
+            focused = true;
+            int row = firstVisibleLine + Math.max(0, (int)(my - areaY - 6) / font.lineHeight);
+            List<String> ls=lines(); row=Math.min(row,ls.size()-1);
+            int colX=areaX+8; int col=0;
+            while(col<ls.get(row).length() && colX + font.width(ls.get(row).substring(0,col+1)) < mx) col++;
+            int pos=0; for(int i=0;i<row;i++) pos+=ls.get(i).length()+1;
+            cursor=Math.min(text.length(),pos+col); return true;
+        }
+        return super.mouseClicked(mx,my,button);
+    }
+
+    @Override public boolean mouseScrolled(double mx, double my, double delta) {
+        int max=Math.max(0,lines().size()-Math.max(1,(areaH-12)/font.lineHeight));
+        firstVisibleLine=Math.max(0,Math.min(max,firstVisibleLine-(int)Math.signum(delta)*3)); return true;
+    }
+
+    @Override public void render(GuiGraphics g, int mx, int my, float pt) {
+        renderBackground(g);
+        g.drawCenteredString(font,title,width/2,12,0xFFFFFF);
+        Component hint = Component.translatable(kind.equals("conditions") ? "screen.mapperzones.editor_condition_hint" : "screen.mapperzones.editor_action_hint");
+        g.drawCenteredString(font,hint,width/2,32,0xB7DFFF);
+        g.fill(areaX-2,areaY-2,areaX+areaW+2,areaY+areaH+2,0xFF8A8A8A);
+        g.fill(areaX,areaY,areaX+areaW,areaY+areaH,0xE8000000);
+        List<String> ls=lines(); int visible=Math.max(1,(areaH-12)/font.lineHeight);
+        for(int row=firstVisibleLine;row<Math.min(ls.size(),firstVisibleLine+visible);row++) {
+            String line=ls.get(row); int yy=areaY+6+(row-firstVisibleLine)*font.lineHeight;
+            g.drawString(font,String.format(Locale.ROOT,"%02d",row+1),areaX+5,yy,0xFF7F8C98);
+            drawHighlighted(g,line,areaX+30,yy,Math.max(20,areaW-38));
+            if(lineNumber(cursor)==row && focused) {
+                String before=line.substring(0,Math.max(0,Math.min(line.length(),cursor-lineStart(cursor))));
+                int cx=areaX+30+font.width(before);
+                if(cx<areaX+areaW-4) g.fill(cx,yy-1,cx+1,yy+font.lineHeight-1,0xFFFFFFFF);
+            }
+        }
+        if (kind.equals("conditions")) g.drawString(font,Component.translatable("screen.mapperzones.condition_vars_hint"),areaX,areaY+areaH+7,0xFF9BE7A8);
+        else g.drawString(font,Component.translatable("screen.mapperzones.action_help_hint"),areaX,areaY+areaH+7,0xFF9BE7A8);
+        super.render(g,mx,my,pt);
+    }
+
+    private void drawHighlighted(GuiGraphics g,String s,int x,int y,int maxWidth) {
+        int color=0xFFDADADA;
+        if(s.startsWith("command:")||s.startsWith("sound:")||s.startsWith("particle:")||s.startsWith("effect:")||s.startsWith("teleport:")||s.startsWith("zone:")||s.startsWith("redstone:")) color=0xFF8BFFA0;
+        else if(s.contains("&&")||s.contains("||")||s.contains(">=")||s.contains("==")||s.contains("!=")) color=0xFFFFD166;
+        else if(s.startsWith("player.")) color=0xFF8BD5FF;
+        String visible=s;
+        while(!visible.isEmpty() && font.width(visible)>maxWidth) visible=visible.substring(0,visible.length()-1);
+        g.drawString(font,Component.literal(visible),x,y,color);
+    }
+
+    @Override public boolean isPauseScreen(){return false;}
+}

@@ -282,7 +282,8 @@ public final class ZoneCommands {
 
         LiteralArgumentBuilder<CommandSourceStack> add = Commands.literal("add").then(Commands.argument("scope", StringArgumentType.word()).then(Commands.argument("name", StringArgumentType.word()).then(Commands.argument("amount", DoubleArgumentType.doubleArg()).executes(context -> addVariable(context.getSource(), StringArgumentType.getString(context, "scope"), StringArgumentType.getString(context, "name"), DoubleArgumentType.getDouble(context, "amount"))))));
 
-        return Commands.literal("var").then(set).then(get).then(add);
+        LiteralArgumentBuilder<CommandSourceStack> remove = Commands.literal("remove").then(Commands.argument("scope", StringArgumentType.word()).then(Commands.argument("name", StringArgumentType.word()).executes(context -> removeVariable(context.getSource(), StringArgumentType.getString(context, "scope"), StringArgumentType.getString(context, "name")))));
+        return Commands.literal("var").then(set).then(get).then(add).then(remove);
     }
 
     private static int setVariable(CommandSourceStack source, String scope, String name, String value) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
@@ -323,6 +324,24 @@ public final class ZoneCommands {
             return 0;
         }
         source.sendSuccess(() -> Component.translatable("message.mapperzones.variable_value", name, value), false);
+        return 1;
+    }
+
+    private static int removeVariable(CommandSourceStack source, String scope, String name) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        MapperData data = MapperData.get(source.getLevel());
+        boolean removed;
+        if (scope.equals("global")) removed = data.globalVars.remove(name) != null;
+        else if (scope.equals("player")) {
+            ServerPlayer player = source.getPlayerOrException();
+            Map<String, String> vars = data.playerVars.get(player.getUUID());
+            removed = vars != null && vars.remove(name) != null;
+            if (vars != null && vars.isEmpty()) data.playerVars.remove(player.getUUID());
+        } else {
+            source.sendFailure(Component.translatable("message.mapperzones.invalid_scope")); return 0;
+        }
+        if (!removed) { source.sendFailure(Component.translatable("message.mapperzones.variable_not_found", name)); return 0; }
+        data.dirty();
+        source.sendSuccess(() -> Component.literal("Removed variable " + name + " (" + scope + ")"), false);
         return 1;
     }
 

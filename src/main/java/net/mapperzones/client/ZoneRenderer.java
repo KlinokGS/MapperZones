@@ -6,6 +6,9 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.mapperzones.item.ModItems;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -15,6 +18,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  * Renders zone boundaries only while the selection wand is held.
  */
 public final class ZoneRenderer {
+    private record ZoneLabel(double x, double y, double z, String text, int color) { }
     @SubscribeEvent
     public void render(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
@@ -33,6 +37,7 @@ public final class ZoneRenderer {
         pose.pushPose();
         pose.translate(-camera.x, -camera.y, -camera.z);
         VertexConsumer lines = buffers.getBuffer(RenderType.lines());
+        java.util.List<ZoneLabel> labels = new java.util.ArrayList<>();
 
         for (JsonObject zone : ClientData.ZONES) {
             try {
@@ -50,6 +55,11 @@ public final class ZoneRenderer {
                 float red = enabled ? 0.1F : 1.0F;
                 float green = enabled ? 1.0F : 0.15F;
                 float blue = 0.2F;
+                String zoneName = zone.has("name") ? zone.get("name").getAsString() : "Unnamed zone";
+                if (camera.distanceToSqr((minX + maxX) / 2.0, maxY + 0.25, (minZ + maxZ) / 2.0) <= 48.0 * 48.0) {
+                    String labelText = enabled ? zoneName : zoneName + " [OFF]";
+                    labels.add(new ZoneLabel((minX + maxX) / 2.0, maxY + 0.25, (minZ + maxZ) / 2.0, labelText, enabled ? 0xFFB8FFB8 : 0xFFFF7777));
+                }
                 String shape = zone.has("shape") ? zone.get("shape").getAsString() : "BOX";
                 if ("SPHERE".equalsIgnoreCase(shape) || "CYLINDER".equalsIgnoreCase(shape)) {
                     double cx = (minX + maxX) / 2.0, cy = (minY + maxY) / 2.0, cz = (minZ + maxZ) / 2.0;
@@ -91,6 +101,20 @@ public final class ZoneRenderer {
             }
         }
         buffers.endBatch(RenderType.lines());
+        // Billboard labels are drawn after the wireframes so their text does not interfere with line rendering.
+        Font font = minecraft.font;
+        for (ZoneLabel label : labels) {
+            pose.pushPose();
+            pose.translate(label.x, label.y, label.z);
+            pose.mulPose(minecraft.getEntityRenderDispatcher().cameraOrientation());
+            pose.scale(-0.025F, -0.025F, 0.025F);
+            Component text = Component.literal(label.text);
+            float textX = -font.width(text) / 2.0F;
+            font.drawInBatch(text, textX, 0, label.color, false, pose.last().pose(), buffers,
+                    Font.DisplayMode.SEE_THROUGH, 0x50000000, LightTexture.FULL_BRIGHT);
+            pose.popPose();
+        }
+        buffers.endBatch();
         pose.popPose();
     }
 
