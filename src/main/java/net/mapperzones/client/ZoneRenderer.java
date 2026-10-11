@@ -18,6 +18,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  * Renders zone boundaries only while the selection wand is held.
  */
 public final class ZoneRenderer {
+    /** Render zones whose nearest chunk is at most this many chunks from the player. */
+    private static final int MAX_CHUNK_DISTANCE = 8;
     private record ZoneLabel(double x, double y, double z, String text, int color) { }
     @SubscribeEvent
     public void render(RenderLevelStageEvent event) {
@@ -51,6 +53,16 @@ public final class ZoneRenderer {
                 double maxX = Math.max(first.get("x").getAsInt(), second.get("x").getAsInt()) + 1;
                 double maxY = Math.max(first.get("y").getAsInt(), second.get("y").getAsInt()) + 1;
                 double maxZ = Math.max(first.get("z").getAsInt(), second.get("z").getAsInt()) + 1;
+                // Chunk-space culling keeps huge maps from rendering distant wireframes.
+                int minChunkX = Math.floorDiv((int)Math.floor(minX), 16);
+                int maxChunkX = Math.floorDiv((int)Math.floor(maxX - 1), 16);
+                int minChunkZ = Math.floorDiv((int)Math.floor(minZ), 16);
+                int maxChunkZ = Math.floorDiv((int)Math.floor(maxZ - 1), 16);
+                int playerChunkX = minecraft.player.chunkPosition().x;
+                int playerChunkZ = minecraft.player.chunkPosition().z;
+                int dx = playerChunkX < minChunkX ? minChunkX - playerChunkX : playerChunkX > maxChunkX ? playerChunkX - maxChunkX : 0;
+                int dz = playerChunkZ < minChunkZ ? minChunkZ - playerChunkZ : playerChunkZ > maxChunkZ ? playerChunkZ - maxChunkZ : 0;
+                if ((long) dx * dx + (long) dz * dz > (long) MAX_CHUNK_DISTANCE * MAX_CHUNK_DISTANCE) continue;
                 boolean enabled = !zone.has("enabled") || zone.get("enabled").getAsBoolean();
                 float red = enabled ? 0.1F : 1.0F;
                 float green = enabled ? 1.0F : 0.15F;

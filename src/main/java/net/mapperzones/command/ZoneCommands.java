@@ -37,13 +37,33 @@ public final class ZoneCommands {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("mapperzones").requires(source -> source.hasPermission(2)).then(Commands.literal("gui").executes(context -> {
-            ServerPlayer player = context.getSource().getPlayerOrException();
-            ModNetwork.openGui(player);
-            return 1;
-        })).then(Commands.literal("wand").executes(context -> giveWand(context.getSource()))).then(Commands.literal("list").executes(context -> listZones(context.getSource()))).then(createCommand()).then(removeCommand()).then(enableCommand()).then(resetCommand()).then(shapeCommand()).then(actionCommand()).then(conditionCommand()).then(exportCommand()).then(importCommand()).then(variableCommand());
+        dispatcher.register(buildRoot("mapperzones"));
+        dispatcher.register(buildRoot("mz"));
+    }
 
-        dispatcher.register(root);
+    private static LiteralArgumentBuilder<CommandSourceStack> buildRoot(String literal) {
+        return Commands.literal(literal)
+                .requires(source -> source.hasPermission(2))
+                .executes(context -> openGui(context.getSource()))
+                .then(Commands.literal("gui").executes(context -> openGui(context.getSource())))
+                .then(Commands.literal("wand").executes(context -> giveWand(context.getSource())))
+                .then(Commands.literal("list").executes(context -> listZones(context.getSource())))
+                .then(createCommand())
+                .then(removeCommand())
+                .then(enableCommand())
+                .then(resetCommand())
+                .then(shapeCommand())
+                .then(actionCommand())
+                .then(conditionCommand())
+                .then(exportCommand())
+                .then(importCommand())
+                .then(variableCommand());
+    }
+
+    private static int openGui(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        ModNetwork.openGui(player);
+        return 1;
     }
 
     private static int giveWand(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
@@ -63,6 +83,10 @@ public final class ZoneCommands {
             source.sendSuccess(() -> Component.literal(zone.name + " [" + zone.shape + "] " + (zone.enabled ? "enabled" : "disabled") + " @ " + zone.dimension), false);
         }
         return data.zones.size();
+    }
+
+    private static void syncIfPlayer(CommandSourceStack source) {
+        if (source.getEntity() instanceof ServerPlayer player && player.hasPermissions(2)) ModNetwork.sync(player);
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> createCommand() {
@@ -108,6 +132,7 @@ public final class ZoneCommands {
                 return 0;
             }
             data.dirty();
+            syncIfPlayer(context.getSource());
             context.getSource().sendSuccess(() -> Component.translatable("message.mapperzones.zone_removed", removed.name), true);
             return 1;
         }));
@@ -124,7 +149,9 @@ public final class ZoneCommands {
                 return 0;
             }
             zone.enabled = BoolArgumentType.getBool(context, "enabled");
+            if (!zone.enabled) { zone.currentlyInside.clear(); zone.nextStayAt.clear(); }
             data.dirty();
+            syncIfPlayer(context.getSource());
             context.getSource().sendSuccess(() -> Component.translatable("message.mapperzones.zone_enabled", zone.name, zone.enabled), true);
             return 1;
         })));
@@ -141,8 +168,13 @@ public final class ZoneCommands {
                 return 0;
             }
             zone.triggeredPlayers.clear();
+            zone.oneTimeEvents.clear();
             zone.lastTriggered.clear();
+            zone.eventLastTriggered.clear();
+            zone.currentlyInside.clear();
+            zone.nextStayAt.clear();
             data.dirty();
+            syncIfPlayer(context.getSource());
             context.getSource().sendSuccess(() -> Component.translatable("message.mapperzones.zone_reset", zone.name), true);
             return 1;
         }));
@@ -165,6 +197,7 @@ public final class ZoneCommands {
                 return 0;
             }
             data.dirty();
+            syncIfPlayer(context.getSource());
             return 1;
         })));
     }
@@ -197,6 +230,7 @@ public final class ZoneCommands {
             }
             actions.add(action);
             data.dirty();
+            syncIfPlayer(context.getSource());
             context.getSource().sendSuccess(() -> Component.translatable("message.mapperzones.action_added", zone.name, event), true);
             return 1;
         }))));
@@ -219,6 +253,7 @@ public final class ZoneCommands {
             }
             zone.conditions.add(condition);
             data.dirty();
+            syncIfPlayer(context.getSource());
             context.getSource().sendSuccess(() -> Component.translatable("message.mapperzones.condition_added", zone.name), true);
             return 1;
         })));

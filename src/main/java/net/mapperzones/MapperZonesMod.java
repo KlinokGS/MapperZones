@@ -59,15 +59,14 @@ public class MapperZonesMod {
         ZoneManager.onServerStopping(e.getServer());
     }
 
+    // Full snapshots are limited to operators; ordinary players do not need the editor data.
     @SubscribeEvent
     public void joined(PlayerEvent.PlayerLoggedInEvent e) {
-        if (e.getEntity() instanceof ServerPlayer p) {
-            ModNetwork.sync(p);
-        }
+        if (e.getEntity() instanceof ServerPlayer p && p.hasPermissions(2)) ModNetwork.sync(p);
     }
 
     @SubscribeEvent
     public void changedDimension(PlayerEvent.PlayerChangedDimensionEvent e) {
-        if (e.getEntity() instanceof ServerPlayer p) ModNetwork.sync(p);
+        if (e.getEntity() instanceof ServerPlayer p && p.hasPermissions(2)) ModNetwork.sync(p);
     }
 }

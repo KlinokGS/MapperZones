@@ -19,7 +19,7 @@ public final class ConditionHelpScreen extends Screen {
     @Override
     protected void init() {
         addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.back_editor"), b -> minecraft.setScreen(parent))
-                .bounds(width / 2 - Math.min(90, (width - 20) / 2), height - 28, Math.min(180, width - 20), 20).build());
+                .bounds(width / 2 - Math.min(70, (width - 20) / 2), height - 28, Math.min(140, width - 20), 20).build());
     }
 
     @Override
@@ -43,14 +43,24 @@ public final class ConditionHelpScreen extends Screen {
         y = heading(g, tr("custom_variables"), x, y, maxWidth, 0xA0FFB0);
         y = wrapped(g, tr("global_vars"), x, y, maxWidth, 0xE0E8FF);
         y = wrapped(g, tr("player_vars"), x, y, maxWidth, 0xE0E8FF);
-        y = wrapped(g, "Examples: global.score >= 5; global.round == 2; player.quest == \"started\"; player.rank != \"newbie\"", x, y, maxWidth, 0x8BFFA0);
+        y = wrapped(g, tr("variable_examples"), x, y, maxWidth, 0x8BFFA0);
+        y = wrapped(g, "exists(global.score) && global.score >= 5", x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, "exists(player.quest) && player.quest == \"started\"", x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, tr("exists_desc"), x, y, maxWidth, 0xE0E8FF);
+        y = separator(g, x, y, maxWidth);
+
+        y = heading(g, tr("event_conditions_title"), x, y, maxWidth, 0x80D8FF);
+        y = wrapped(g, tr("event_conditions_desc"), x, y, maxWidth, 0xE0E8FF);
+        y = wrapped(g, "action.enter: exists(global.score)", x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, "action.stay: global.score >= 5", x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, "action.exit: player.quest == \"done\"", x, y, maxWidth, 0x78E6D0);
         y = separator(g, x, y, maxWidth);
 
         y = heading(g, tr("comparison_operators"), x, y, maxWidth, 0xA0FFB0);
         y = wrapped(g, "==  !=  >  <  >=  <=", x, y, maxWidth, 0xFFFFFF);
         y = heading(g, tr("logic_grouping"), x, y + 2, maxWidth, 0xA0FFB0);
         y = wrapped(g, tr("logic_desc"), x, y, maxWidth, 0xFFFFFF);
-        y = wrapped(g, "Put text values in quotes, for example: player.name == \"Steve\"", x, y, maxWidth, 0xD0D0D0);
+        y = wrapped(g, tr("quotes_desc"), x, y, maxWidth, 0xD0D0D0);
         y = separator(g, x, y, maxWidth);
 
         y = heading(g, tr("player_variable_examples"), x, y, maxWidth, 0xA0FFB0);
@@ -94,7 +104,7 @@ public final class ConditionHelpScreen extends Screen {
         y = wrapped(g, "var global score >= 5", x, y, maxWidth, 0x8BFFA0);
         y = wrapped(g, "var player quest == \"started\"", x, y, maxWidth, 0x8BFFA0);
         y = wrapped(g, tr("legacy_desc"), x, y, maxWidth, 0xE0E8FF);
-        y = wrapped(g, "For new configurations, the expression style is usually easier to combine: global.score >= 5 && player.quest == \"started\"", x, y, maxWidth, 0xBFBFBF);
+        y = wrapped(g, tr("legacy_details"), x, y, maxWidth, 0xBFBFBF);
         contentHeight = y + scroll;
         g.disableScissor();
         if (contentHeight > bottom - top) {

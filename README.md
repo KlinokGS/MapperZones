@@ -68,7 +68,27 @@ Zone data is saved as world SavedData; variables are persisted with it. The JSON
 ## Maintenance notes (1.20.1)
 
 - Action strings accept both `sound minecraft:block.note_block.pling 1 1` and `sound:minecraft:block.note_block.pling 1 1` (and equivalent supported action prefixes). `command:say Hello` and `command say Hello` are also accepted.
-- Entry, exit, and stay events have separate cooldown timestamps. `oneTime` is consumed on entry, not by a stay/exit event.
+- Entry, exit, and stay events have separate cooldown timestamps. `stayInterval` is measured from each player entering the zone; subsequent stay events are scheduled from the previous deadline. With `oneTime` enabled, each player can trigger enter, stay and exit once each (rather than enter suppressing the other events).
 - Delayed actions are saved with world data and run when their target player is online; a limit of 10,000 pending actions and 200 executions per server tick protects the server from accidental overload.
 - Temporary redstone blocks are restored when their timer expires or during orderly server shutdown. An abrupt process crash can still interrupt in-memory restoration timers.
 - Zone import/load validates zone names and action/condition list sizes and logs invalid saved zones instead of silently discarding them. Exported JSON has `schemaVersion: 1`; legacy files without a version remain supported.
+
+
+## Condition variable checks
+
+Custom variable expressions support `exists(global.score) && global.score >= 5` and `exists(player.quest) && player.quest == "started"`. Unknown variable names make a condition fail instead of being treated as literal text.
+
+### Event-specific conditions
+
+Condition lines without a prefix apply to all zone events. To restrict a condition to one event, prefix it with `action.enter:`, `action.stay:` or `action.exit:`. The expression is evaluated only when that event is about to run; it does not block the other two events.
+
+Examples:
+
+- `action.enter: exists(global.score)` — run enter actions only if the global variable `score` exists.
+- `action.stay: global.score >= 5` — run stay actions only when `score` is at least 5.
+- `action.exit: player.quest == "done"` — run exit actions only when this player's `quest` variable equals `done`.
+
+Every applicable condition line must pass. Combine expressions on a line with `&&`, `||` and parentheses as usual. An empty or malformed `action.*:` condition fails closed for safety.
+
+
+Zone boundary rendering is limited to zones within 8 chunks of the player in the current dimension and remains active only while the zone wand is held. Full zone snapshots are sent to operators rather than every player; opening the editor requests a fresh snapshot.

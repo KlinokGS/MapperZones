@@ -110,6 +110,13 @@ public final class MapperData extends SavedData {
         setDirty();
     }
 
+    public boolean hasVariable(UUID player, String key) {
+        if (key == null || key.isBlank()) return false;
+        if (key.regionMatches(true, 0, "global.", 0, 7)) return globalVars.containsKey(key.substring(7));
+        if (key.regionMatches(true, 0, "player.", 0, 7)) return playerVars.getOrDefault(player, Map.of()).containsKey(key.substring(7));
+        return globalVars.containsKey(key) || playerVars.getOrDefault(player, Map.of()).containsKey(key);
+    }
+
     public String variable(UUID player, String key) {
         if (key.startsWith("player."))
             return playerVars.getOrDefault(player, Map.of()).getOrDefault(key.substring(7), "");

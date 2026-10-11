@@ -30,6 +30,7 @@ public final class ModNetwork {
         CHANNEL.registerMessage(id++, SaveZone.class, SaveZone::encode, SaveZone::decode, SaveZone::handle);
         CHANNEL.registerMessage(id++, DeleteZone.class, DeleteZone::encode, DeleteZone::decode, DeleteZone::handle);
         CHANNEL.registerMessage(id++, SetVariable.class, SetVariable::encode, SetVariable::decode, SetVariable::handle);
+        CHANNEL.registerMessage(id++, UpdateVariable.class, UpdateVariable::encode, UpdateVariable::decode, UpdateVariable::handle);
         CHANNEL.registerMessage(id++, RemoveVariable.class, RemoveVariable::encode, RemoveVariable::decode, RemoveVariable::handle);
         CHANNEL.registerMessage(id++, RequestSync.class, RequestSync::encode, RequestSync::decode, RequestSync::handle);
     }
@@ -109,6 +110,18 @@ public final class ModNetwork {
                     }
                     if (z.name.length() > 64 || z.enterActions.size() > 64 || z.exitActions.size() > 64 || z.stayActions.size() > 64 || z.conditions.size() > 64)
                         throw new IllegalArgumentException("Too many entries or name too long");
+                    // Runtime state is server-authoritative. The editor's JSON is based on an
+                    // older client snapshot and may contain stale oneTime/reset history. Never
+                    // let a save resurrect cleared one-time flags or overwrite live occupancy.
+                    TriggerZone current = d.zones.get(key);
+                    if (current != null) {
+                        z.triggeredPlayers.addAll(current.triggeredPlayers);
+                        z.oneTimeEvents.addAll(current.oneTimeEvents);
+                        z.currentlyInside.addAll(current.currentlyInside);
+                        z.nextStayAt.putAll(current.nextStayAt);
+                        z.lastTriggered.putAll(current.lastTriggered);
+                        z.eventLastTriggered.putAll(current.eventLastTriggered);
+                    }
                     d.zones.put(key, z);
                     d.dirty();
                     sync(p);
@@ -173,6 +186,65 @@ public final class ModNetwork {
         }
     }
 
+    /** Atomically updates a variable, optionally renaming it or moving it between scopes. */
+    public record UpdateVariable(String oldScope, String oldName, String newScope, String newName, String value) {
+        static void encode(UpdateVariable m, FriendlyByteBuf b) {
+            b.writeUtf(m.oldScope, 16);
+            b.writeUtf(m.oldName, 128);
+            b.writeUtf(m.newScope, 16);
+            b.writeUtf(m.newName, 128);
+            b.writeUtf(m.value, 1024);
+        }
+
+        static UpdateVariable decode(FriendlyByteBuf b) {
+            return new UpdateVariable(b.readUtf(16), b.readUtf(128), b.readUtf(16), b.readUtf(128), b.readUtf(1024));
+        }
+
+        static void handle(UpdateVariable m, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> {
+                ServerPlayer p = c.get().getSender();
+                if (p == null || !p.hasPermissions(2)) return;
+                if (!(m.oldScope.equals("global") || m.oldScope.equals("player"))
+                        || !(m.newScope.equals("global") || m.newScope.equals("player"))
+                        || m.oldName.isBlank() || m.newName.isBlank()
+                        || m.oldName.length() > 128 || m.newName.length() > 128 || m.value.length() > 1024) {
+                    p.sendSystemMessage(Component.translatable("message.mapperzones.variable_update_invalid"));
+                    return;
+                }
+
+                MapperData d = MapperData.get(p.serverLevel());
+                Map<String, String> oldMap = variableMap(d, m.oldScope, p);
+                Map<String, String> newMap = variableMap(d, m.newScope, p);
+                if (oldMap == null || newMap == null || !oldMap.containsKey(m.oldName)) {
+                    p.sendSystemMessage(Component.translatable("message.mapperzones.variable_update_missing", m.oldName));
+                    sync(p);
+                    return;
+                }
+
+                boolean sameIdentity = m.oldScope.equals(m.newScope) && m.oldName.equals(m.newName);
+                if (!sameIdentity && newMap.containsKey(m.newName)) {
+                    p.sendSystemMessage(Component.translatable("message.mapperzones.variable_update_conflict", m.newScope, m.newName));
+                    sync(p);
+                    return;
+                }
+
+                oldMap.remove(m.oldName);
+                if (oldMap.isEmpty() && m.oldScope.equals("player")) d.playerVars.remove(p.getUUID());
+                variableMap(d, m.newScope, p).put(m.newName, m.value);
+                d.dirty();
+                sync(p);
+                p.sendSystemMessage(Component.translatable("message.mapperzones.variable_updated", m.newScope, m.newName));
+            });
+            c.get().setPacketHandled(true);
+        }
+    }
+
+    private static Map<String, String> variableMap(MapperData d, String scope, ServerPlayer p) {
+        if (scope.equals("global")) return d.globalVars;
+        if (scope.equals("player")) return d.playerVars.computeIfAbsent(p.getUUID(), u -> new LinkedHashMap<>());
+        return null;
+    }
+
     public record RemoveVariable(String scope, String name) {
         static void encode(RemoveVariable m, FriendlyByteBuf b) { b.writeUtf(m.scope, 16); b.writeUtf(m.name, 128); }
         static RemoveVariable decode(FriendlyByteBuf b) { return new RemoveVariable(b.readUtf(16), b.readUtf(128)); }
@@ -223,6 +295,10 @@ public final class ModNetwork {
 
     public static void setVariable(String scope, String name, String value) {
         CHANNEL.sendToServer(new SetVariable(scope, name, value));
+    }
+
+    public static void updateVariable(String oldScope, String oldName, String newScope, String newName, String value) {
+        CHANNEL.sendToServer(new UpdateVariable(oldScope, oldName, newScope, newName, value));
     }
 
     public static void removeVariable(String scope, String name) { CHANNEL.sendToServer(new RemoveVariable(scope, name)); }

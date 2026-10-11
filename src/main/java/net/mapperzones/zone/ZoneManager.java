@@ -79,10 +79,14 @@ public final class ZoneManager {
             // Disabled zones must not retain stale occupancy state.
             if (!z.enabled) {
                 z.currentlyInside.clear();
+                z.nextStayAt.clear();
                 continue;
             }
             // A player who logged out must not remain marked as inside indefinitely.
-            z.currentlyInside.removeIf(id -> !online.contains(id));
+            z.currentlyInside.removeIf(id -> {
+                if (!online.contains(id)) { z.nextStayAt.remove(id); return true; }
+                return false;
+            });
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 UUID id = player.getUUID();
                 boolean was = z.currentlyInside.contains(id);
@@ -90,18 +94,27 @@ public final class ZoneManager {
                 boolean inside = sameDimension && z.contains(player);
                 if (inside && !was) {
                     z.currentlyInside.add(id);
+                    // The first stay event is scheduled relative to this player's entry time.
+                    z.nextStayAt.put(id, now + Math.max(1, z.stayInterval));
                     if (canTrigger(z, player, data, now, "enter")) runActions(player, data, z.enterActions);
                 } else if (!inside && was) {
                     z.currentlyInside.remove(id);
+                    z.nextStayAt.remove(id);
                     // Dimension changes count as leaving the old zone.
                     if (canTrigger(z, player, data, now, "exit")) runActions(player, data, z.exitActions);
-                } else if (inside && was && now % Math.max(1, z.stayInterval) == 0) {
+                } else if (inside && was && now >= z.nextStayAt.getOrDefault(id, now + Math.max(1, z.stayInterval))) {
+                    long interval = Math.max(1, z.stayInterval);
+                    // Advance from the previous deadline, avoiding drift caused by the 5-tick scan.
+                    long next = z.nextStayAt.getOrDefault(id, now) + interval;
+                    while (next <= now) next += interval;
+                    z.nextStayAt.put(id, next);
                     if (canTrigger(z, player, data, now, "stay")) runActions(player, data, z.stayActions);
                 }
             }
         }
         FREEZE_UNTIL.keySet().removeIf(id -> !online.contains(id));
         for (TriggerZone z : data.zones.values()) {
+            z.nextStayAt.keySet().removeIf(id -> !online.contains(id));
             z.eventLastTriggered.keySet().removeIf(key -> {
                 int split = key.indexOf(':');
                 if (split < 0) return true;
@@ -112,15 +125,17 @@ public final class ZoneManager {
     }
 
     private static boolean canTrigger(TriggerZone z, ServerPlayer p, MapperData d, long now, String event) {
-        if (z.oneTime && z.triggeredPlayers.contains(p.getUUID())) return false;
+        String oneTimeKey = p.getUUID() + ":" + event;
+        if (z.oneTime && z.oneTimeEvents.contains(oneTimeKey)) return false;
         String cooldownKey = p.getUUID() + ":" + event + ":" + z.name.toLowerCase(Locale.ROOT);
         long last = z.eventLastTriggered.getOrDefault(cooldownKey, Long.MIN_VALUE / 2);
         if (now - last < z.cooldownTicks) return false;
-        if (!conditionsPass(z, p, d)) return false;
+        if (!conditionsPass(z, p, d, event)) return false;
         z.eventLastTriggered.put(cooldownKey, now);
         z.lastTriggered.put(p.getUUID(), now); // retained for compatibility with existing commands
-        if (z.oneTime && event.equals("enter")) {
-            z.triggeredPlayers.add(p.getUUID());
+        if (z.oneTime) {
+            z.oneTimeEvents.add(oneTimeKey);
+            if (event.equals("enter")) z.triggeredPlayers.add(p.getUUID());
             d.dirty();
         }
         return true;
@@ -138,10 +153,29 @@ public final class ZoneManager {
     }
 
     public static boolean conditionsPass(TriggerZone z, ServerPlayer p, MapperData d) {
-        // Each configured line is an independent requirement; expressions within a line may use && and ||.
+        return conditionsPass(z, p, d, null);
+    }
+
+    /**
+     * Conditions without a prefix apply to every event. Event-specific conditions use
+     * action.enter:, action.stay: or action.exit: and are evaluated only for that event.
+     */
+    private static boolean conditionsPass(TriggerZone z, ServerPlayer p, MapperData d, String event) {
+        // Each applicable configured line is an independent requirement; expressions within a line may use && and ||.
         for (String raw : z.conditions) {
             String c = raw.trim();
             if (c.isEmpty()) continue;
+            java.util.regex.Matcher eventCondition = java.util.regex.Pattern
+                    .compile("(?i)^action\\.(enter|stay|exit)\\s*:\\s*(.*)$").matcher(c);
+            if (eventCondition.matches()) {
+                String targetEvent = eventCondition.group(1).toLowerCase(Locale.ROOT);
+                if (event == null || !targetEvent.equals(event)) continue;
+                c = eventCondition.group(2).trim();
+                if (c.isEmpty()) return false;
+            } else if (c.regionMatches(true, 0, "action.", 0, 7)) {
+                // A malformed action-scoped condition should fail closed, not silently act as a global condition.
+                return false;
+            }
             try {
                 // Preserve the original shorthand conditions for existing zone files.
                 String[] a = c.split("\\s+", 5);
@@ -180,7 +214,9 @@ public final class ZoneManager {
                     }
                     case "var" -> {
                         if (a.length < 5) return false;
-                        String val = d.variable(p.getUUID(), a[1].equalsIgnoreCase("player") ? "player." + a[2] : a[2]);
+                        String varKey = a[1].equalsIgnoreCase("player") ? "player." + a[2] : a[2];
+                        if (!d.hasVariable(p.getUUID(), varKey)) return false;
+                        String val = d.variable(p.getUUID(), varKey);
                         String op = a[3], rhs = String.join(" ", Arrays.copyOfRange(a, 4, a.length));
                         if (!compareValues(val, op, rhs)) return false;
                         continue;
@@ -273,6 +309,12 @@ public final class ZoneManager {
             }
             if (index >= tokens.size()) throw new IllegalArgumentException("Expected value");
             String token = tokens.get(index++);
+            if (token.equalsIgnoreCase("exists") && take("(")) {
+                if (index >= tokens.size()) throw new IllegalArgumentException("Expected variable name in exists(...)");
+                String variableName = tokens.get(index++);
+                if (!take(")")) throw new IllegalArgumentException("Missing ')' after exists(...)");
+                return data.hasVariable(player.getUUID(), variableName);
+            }
             if ((token.startsWith("\"") && token.endsWith("\"")) || (token.startsWith("'") && token.endsWith("'")))
                 return token.substring(1, token.length() - 1).replace("\\\"", "\"").replace("\\'", "'");
             if (token.equalsIgnoreCase("true")) return true;
@@ -315,10 +357,21 @@ public final class ZoneManager {
                 case "dimension", "dim" -> player.level().dimension().location().toString();
                 case "weather" -> player.level().isThundering() ? "thunder" : player.level().isRaining() ? "rain" : "clear";
                 default -> {
-                    String value = data.variable(player.getUUID(), key);
-                    if (value.isEmpty() && !k.startsWith("player.") && !k.startsWith("global.")) yield key;
-                    if (k.startsWith("global.")) value = data.globalVars.getOrDefault(key.substring(7), "");
-                    yield value;
+                    if (k.startsWith("global.")) {
+                        String name = key.substring(7);
+                        if (!data.globalVars.containsKey(name)) throw new IllegalArgumentException("Unknown global variable: " + name);
+                        yield data.globalVars.get(name);
+                    }
+                    if (k.startsWith("player.")) {
+                        String name = key.substring(7);
+                        if (!data.playerVars.getOrDefault(player.getUUID(), Map.of()).containsKey(name))
+                            throw new IllegalArgumentException("Unknown player variable: " + name);
+                        yield data.playerVars.get(player.getUUID()).get(name);
+                    }
+                    if (data.globalVars.containsKey(key)) yield data.globalVars.get(key);
+                    if (data.playerVars.getOrDefault(player.getUUID(), Map.of()).containsKey(key))
+                        yield data.playerVars.get(player.getUUID()).get(key);
+                    throw new IllegalArgumentException("Unknown variable: " + key);
                 }
             };
         }
@@ -481,12 +534,14 @@ public final class ZoneManager {
                 if (z == null) return;
                 switch (a[1].toLowerCase(Locale.ROOT)) {
                     case "enable" -> z.enabled = true;
-                    case "disable" -> { z.enabled = false; z.currentlyInside.clear(); }
+                    case "disable" -> { z.enabled = false; z.currentlyInside.clear(); z.nextStayAt.clear(); }
                     case "reset" -> {
                         z.triggeredPlayers.clear();
+                        z.oneTimeEvents.clear();
                         z.lastTriggered.clear();
                         z.eventLastTriggered.clear();
                         z.currentlyInside.clear();
+                        z.nextStayAt.clear();
                     }
                     default -> {
                         return;

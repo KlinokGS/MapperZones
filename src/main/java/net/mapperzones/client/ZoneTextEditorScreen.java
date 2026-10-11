@@ -139,19 +139,56 @@ public final class ZoneTextEditorScreen extends Screen {
                 if(cx<areaX+areaW-4) g.fill(cx,yy-1,cx+1,yy+font.lineHeight-1,0xFFFFFFFF);
             }
         }
-        if (kind.equals("conditions")) g.drawString(font,Component.translatable("screen.mapperzones.condition_vars_hint"),areaX,areaY+areaH+7,0xFF9BE7A8);
-        else g.drawString(font,Component.translatable("screen.mapperzones.action_help_hint"),areaX,areaY+areaH+7,0xFF9BE7A8);
+        Component footerHint = Component.translatable(kind.equals("conditions")
+                ? "screen.mapperzones.condition_vars_hint"
+                : "screen.mapperzones.action_help_hint");
+        int hintY = areaY + areaH + 7;
+        int hintWidth = Math.max(40, width - areaX * 2);
+        // Wrap long localized hints instead of letting them run past the right edge.
+        // The editor layout reserves enough space between the text area and bottom buttons.
+        List<net.minecraft.util.FormattedCharSequence> hintLines = font.split(footerHint, hintWidth);
+        int maxHintLines = Math.max(1, (height - 32 - hintY) / font.lineHeight);
+        for (int i = 0; i < Math.min(hintLines.size(), maxHintLines); i++) {
+            g.drawString(font, hintLines.get(i), areaX, hintY + i * font.lineHeight, 0xFF9BE7A8, false);
+        }
         super.render(g,mx,my,pt);
     }
 
-    private void drawHighlighted(GuiGraphics g,String s,int x,int y,int maxWidth) {
-        int color=0xFFDADADA;
-        if(s.startsWith("command:")||s.startsWith("sound:")||s.startsWith("particle:")||s.startsWith("effect:")||s.startsWith("teleport:")||s.startsWith("zone:")||s.startsWith("redstone:")) color=0xFF8BFFA0;
-        else if(s.contains("&&")||s.contains("||")||s.contains(">=")||s.contains("==")||s.contains("!=")) color=0xFFFFD166;
-        else if(s.startsWith("player.")) color=0xFF8BD5FF;
-        String visible=s;
-        while(!visible.isEmpty() && font.width(visible)>maxWidth) visible=visible.substring(0,visible.length()-1);
-        g.drawString(font,Component.literal(visible),x,y,color);
+    private void drawHighlighted(GuiGraphics g, String s, int x, int y, int maxWidth) {
+        if (!kind.equals("conditions")) {
+            int color = 0xFFDADADA;
+            if (s.startsWith("command:") || s.startsWith("sound:") || s.startsWith("particle:") || s.startsWith("effect:") || s.startsWith("teleport:") || s.startsWith("zone:") || s.startsWith("redstone:")) color = 0xFF8BFFA0;
+            g.drawString(font, Component.literal(trimToWidth(s, maxWidth)), x, y, color);
+            return;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\\"(?:\\\\.|[^\\\"])*\\\"|'(?:\\\\.|[^'])*'|(?:>=|<=|==|!=|&&|\\|\\||[()!<>])|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)|[A-Za-z_][A-Za-z0-9_./:-]*|\\s+|.").matcher(s);
+        int drawX = x;
+        int used = 0;
+        while (matcher.find()) {
+            String token = matcher.group();
+            int color = 0xFFDADADA;
+            String lower = token.toLowerCase(Locale.ROOT);
+            if (token.isBlank()) color = 0xFFDADADA;
+            else if (lower.matches("action\\.(enter|stay|exit):?")) color = 0xFFFFA6D7;
+            else if (token.startsWith("\"") || token.startsWith("'")) color = 0xFFFFC98B;
+            else if (token.matches("[-+]?(?:\\d+\\.?\\d*|\\.\\d+)")) color = 0xFFB9A0FF;
+            else if (java.util.Set.of("&&", "||", "==", "!=", ">", "<", ">=", "<=", "!", "(", ")").contains(token)) color = 0xFFFFD166;
+            else if (lower.equals("exists")) color = 0xFF78E6D0;
+            else if (lower.startsWith("player.")) color = 0xFF8BD5FF;
+            else if (lower.startsWith("global.")) color = 0xFF8BFFA0;
+            else if (java.util.Set.of("true", "false", "item", "team", "time", "weather", "dim", "var").contains(lower)) color = 0xFFFFA6D7;
+            int tokenWidth = font.width(token);
+            if (used + tokenWidth > maxWidth) break;
+            if (!token.isBlank()) g.drawString(font, Component.literal(token), drawX, y, color, false);
+            drawX += tokenWidth;
+            used += tokenWidth;
+        }
+    }
+
+    private String trimToWidth(String value, int maxWidth) {
+        String visible = value;
+        while (!visible.isEmpty() && font.width(visible) > maxWidth) visible = visible.substring(0, visible.length() - 1);
+        return visible;
     }
 
     @Override public boolean isPauseScreen(){return false;}

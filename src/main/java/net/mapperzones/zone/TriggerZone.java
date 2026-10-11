@@ -20,7 +20,12 @@ public final class TriggerZone {
     public boolean enabled = true, oneTime = false;
     public int stayInterval = 40, cooldownTicks = 0;
     public final List<String> enterActions = new ArrayList<>(), exitActions = new ArrayList<>(), stayActions = new ArrayList<>(), conditions = new ArrayList<>();
+    /** Legacy list retained for compatibility; now records players whose enter event fired. */
     public final Set<UUID> triggeredPlayers = new HashSet<>();
+    /** oneTime is tracked per player and event so enter, stay and exit can each fire once. */
+    public final Set<String> oneTimeEvents = new HashSet<>();
+    /** Runtime schedule: next stay event time, measured from entry and then repeated by interval. */
+    public final Map<UUID, Long> nextStayAt = new HashMap<>();
     public final Map<UUID, Long> lastTriggered = new HashMap<>();
     /** Event-specific cooldowns prevent an entry cooldown from suppressing exit/stay events. */
     public final Map<String, Long> eventLastTriggered = new HashMap<>();
@@ -116,6 +121,9 @@ public final class TriggerZone {
         JsonArray done = new JsonArray();
         triggeredPlayers.forEach(u -> done.add(u.toString()));
         o.add("triggeredPlayers", done);
+        JsonArray oneTimeDone = new JsonArray();
+        oneTimeEvents.forEach(oneTimeDone::add);
+        o.add("oneTimeEvents", oneTimeDone);
         return o;
     }
 
@@ -170,6 +178,15 @@ public final class TriggerZone {
                 } catch (Exception ignored) {
                 }
             }
+        if (o.has("oneTimeEvents") && o.get("oneTimeEvents").isJsonArray())
+            for (JsonElement e : o.getAsJsonArray("oneTimeEvents")) {
+                if (e.isJsonPrimitive() && e.getAsJsonPrimitive().isString()) {
+                    String key = e.getAsString();
+                    if (key.length() <= 64) z.oneTimeEvents.add(key);
+                }
+            }
+        // Migrate legacy oneTime saves: previously triggeredPlayers meant enter had fired.
+        for (UUID id : z.triggeredPlayers) z.oneTimeEvents.add(id + ":enter");
         return z;
     }
 
