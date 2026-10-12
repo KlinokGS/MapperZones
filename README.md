@@ -1,94 +1,137 @@
-# Mapper Zones (Minecraft Forge 1.20.1)
+![MapperZones](https://iili.io/nVlhlAG.png)
 
-Mapper Zones is a server-authoritative trigger-zone toolkit for Forge 1.20.1. It includes zone selection, zone triggers, conditions, actions, global/player variables, JSON import/export, networking and lightweight editor screens.
+[CurseForge](https://www.curseforge.com/minecraft/mc-mods/mapper-zones) - [Modrinth](https://modrinth.com/mod/mapper-zones)
 
-## Requirements
-- Minecraft Forge 1.20.1 (47.2.20)
-- Java 17
-- Internet access on the first build so Gradle and Forge dependencies can be downloaded
+# EN: MapperZones — Trigger zones for Minecraft maps
 
-## Build on Windows
-1. Install a 64-bit Java 17 JDK and make sure `java -version` reports 17.
-2. Extract the project folder.
-3. Open a terminal in this folder and run `gradlew.bat build`.
-4. The mod jar will be in `build\libs\MapperZones-1.0.0.jar`.
-
-The included `gradlew.bat` bootstraps Gradle 8.8 if it is not already cached. It is a small self-contained bootstrap script; it does not require a separate wrapper JAR.
+MapperZones is a map-making tool for creating trigger zones and configuring events that react to player movement and conditions. It includes a GUI editor, server-side variables, condition expressions, and visual zone boundaries.
 
 ## Commands
-- `/mapperzones gui` — open the zone browser.
-- `/mapperzones wand` — give the selection wand.
-- `/mapperzones create <name>` — create a box from the two selected points.
-- `/mapperzones remove <name>` — remove a zone.
-- `/mapperzones list` — list zones.
-- `/mapperzones enable <name> <true|false>` — toggle a zone.
-- `/mapperzones reset <name>` — clear one-time trigger history.
-- `/mapperzones export <name>` and `/mapperzones import <name>` — JSON export/import in `config/mapperzones/exports`.
-- `/mapperzones action <name> <enter|exit|stay> <action...>` — append an action.
-- `/mapperzones condition <name> <condition...>` — append a condition.
-- `/mapperzones var set <global|player> <name> <value...>` — set a variable.
-- `/mapperzones var get <global|player> <name>` and `/mapperzones var add <global|player> <name> <amount>`.
-- `/mapperzones var remove <global|player> <name>` — remove a variable.
 
-## Selection and action syntax
-Use the wand on two blocks to select opposite corners. Then run `/mapperzones create <name>`.
+- `/mapperzones` — open the main GUI.
+- `/mapperzones gui` — open the main GUI.
+- `/mz` — short alias for `/mapperzones` when enabled in settings.
+- `/mapperzones reset` — reset zone event state.
+- Use the in-game GUI to create and edit zones, configure their conditions, and manage variables.
 
-Action strings supported by the action executor:
-- `command:<server command without leading slash>`
-- `delay <ticks> <action...>`
-- `sound:<minecraft:sound_id> [volume] [pitch]`
-- `particle:<minecraft:particle_id> [count]`
-- `effect:<minecraft:effect_id> <seconds> <amplifier>`
-- `teleport:<x> <y> <z>`
-- `freeze:<ticks>`
-- `inventory:save` / `inventory:restore`
-- `redstone:<x> <y> <z> <ticks>` — temporarily sets a redstone block and restores the previous block
-- `zone:enable <zone>` / `zone:disable <zone>` / `zone:reset <zone>`
+> The `/mz` alias can be disabled in the in-game settings if it conflicts with another mod or server command.
 
-Each condition line is ANDed with the other lines. Expression lines support comparisons (`==`, `!=`, `>`, `<`, `>=`, `<=`), logical operators (`&&`, `||`), parentheses and quoted strings. Prefer the `player.` prefix for player properties:
+## Conditions and variables
 
-- `player.health >= 10`, `player.max_health == 20`
-- `player.food >= 6 && player.health < player.max_health`
-- `player.name == "Steve"`
-- `player.dimension == "minecraft:overworld"`
-- `player.level >= 5`, `player.experience > 0.5`, `player.saturation >= 3`
-- `player.absorption > 0`, `player.armor >= 10`, `player.air < player.max_air`
-- `player.x >= 0`, `player.y < 80`, `player.z != 0`
-- Boolean properties: `player.on_ground`, `player.sprinting`, `player.sneaking`, `player.alive`, `player.in_water`, `player.underwater`, `player.invisible`, `player.sleeping`
-- `player.uuid == "..."`, `player.team == "red"`
-- Custom personal variables can still be referenced as `player.quest == "started"`; global variables as `global.score >= 5`.
+Conditions are written as expressions, one per line. Examples:
 
-Legacy forms remain supported: `health >= 10`, `level >= 5`, `item minecraft:diamond`, `team <name>`, `var <scope> <name> <operator> <value>`, `time <operator> <ticks>`, `weather clear|rain|thunder`, and `dim <namespace:dimension>`. The wand renderer displays each zone name above its boundary while the wand is held; disabled zones are marked `[OFF]`.
+```text
+player.on_ground
+exists(player.quest)
+action.exit: time >= 12000
+```
 
-Text supports `${name}` for global variables and `${player.name}` for the current player's personal variables.
+Variable comparisons can use expressions such as:
 
-## Data and safety
-Zone data is saved as world SavedData; variables are persisted with it. The JSON export folder is under the server's config directory. Imported JSON is parsed and validated before a zone is replaced. Commands and actions run on the logical server only.
+```text
+global.score >= 5 && player.quest == "started"
+```
 
-## Maintenance notes (1.20.1)
+- `global.<name>` — a shared server-side variable.
+- `player.<name>` — a variable associated with an individual player.
+- `exists(global.score)` — checks whether a variable exists.
+- `action.enter:` and `action.exit:` — apply a condition to the corresponding zone event.
+- Conditions can be combined using logical operators such as `&&` and `||`.
 
-- Action strings accept both `sound minecraft:block.note_block.pling 1 1` and `sound:minecraft:block.note_block.pling 1 1` (and equivalent supported action prefixes). `command:say Hello` and `command say Hello` are also accepted.
-- Entry, exit, and stay events have separate cooldown timestamps. `stayInterval` is measured from each player entering the zone; subsequent stay events are scheduled from the previous deadline. With `oneTime` enabled, each player can trigger enter, stay and exit once each (rather than enter suppressing the other events).
-- Delayed actions are saved with world data and run when their target player is online; a limit of 10,000 pending actions and 200 executions per server tick protects the server from accidental overload.
-- Temporary redstone blocks are restored when their timer expires or during orderly server shutdown. An abrupt process crash can still interrupt in-memory restoration timers.
-- Zone import/load validates zone names and action/condition list sizes and logs invalid saved zones instead of silently discarding them. Exported JSON has `schemaVersion: 1`; legacy files without a version remain supported.
+Use the in-game condition help screen for the syntax and examples supported by your installed version.
 
+## In-game settings
 
-## Condition variable checks
+The settings screen lets you configure:
 
-Custom variable expressions support `exists(global.score) && global.score >= 5` and `exists(player.quest) && player.quest == "started"`. Unknown variable names make a condition fail instead of being treated as literal text.
+- Zone-boundary render distance: 4, 8, 12, or 16 chunks (default: 8).
+- Whether the `/mz` command alias is enabled (default: on).
+- Whether zone names are shown above their boundaries (default: on).
 
-### Event-specific conditions
+Settings are stored in:
 
-Condition lines without a prefix apply to all zone events. To restrict a condition to one event, prefix it with `action.enter:`, `action.stay:` or `action.exit:`. The expression is evaluated only when that event is about to run; it does not block the other two events.
+```text
+config/mapperzones/settings.json
+```
 
-Examples:
+## What's included
 
-- `action.enter: exists(global.score)` — run enter actions only if the global variable `score` exists.
-- `action.stay: global.score >= 5` — run stay actions only when `score` is at least 5.
-- `action.exit: player.quest == "done"` — run exit actions only when this player's `quest` variable equals `done`.
+- In-game GUI for managing trigger zones.
+- Visual zone boundaries and zone names.
+- Configurable render distance for zone highlighting.
+- Zone events, including entering and exiting zones, and stay-time checks.
+- `oneTime` behavior for one-time event execution.
+- Condition expressions and variable-existence checks.
+- Server-side `global` and per-player `player` variables.
+- Variable management through the GUI.
+- Localized interface and condition help.
+- Optional `/mz` command alias.
+- In-game settings screen.
 
-Every applicable condition line must pass. Combine expressions on a line with `&&`, `||` and parentheses as usual. An empty or malformed `action.*:` condition fails closed for safety.
+---
 
+# RU: MapperZones — Триггерные зоны для карт Minecraft
 
-Zone boundary rendering is limited to zones within 8 chunks of the player in the current dimension and remains active only while the zone wand is held. Full zone snapshots are sent to operators rather than every player; opening the editor requests a fresh snapshot.
+MapperZones — инструмент для создания триггерных зон и настройки событий, реагирующих на перемещение игрока и выполнение условий. Мод включает GUI-редактор, серверные переменные, выражения условий и визуальное отображение границ зон.
+
+## Команды
+
+- `/mapperzones` — открыть главное GUI.
+- `/mapperzones gui` — открыть главное GUI.
+- `/mz` — короткий псевдоним `/mapperzones`, если он включён в настройках.
+- `/mapperzones reset` — сбросить состояние событий зон.
+- Создавайте и редактируйте зоны, настраивайте условия и управляйте переменными через внутриигровой интерфейс.
+
+> Псевдоним `/mz` можно отключить в настройках мода, если он конфликтует с другой командой или модом на сервере.
+
+## Условия и переменные
+
+Условия записываются выражениями, по одному на строку. Примеры:
+
+```text
+player.on_ground
+exists(player.quest)
+action.exit: time >= 12000
+```
+
+Сравнения переменных могут выглядеть так:
+
+```text
+global.score >= 5 && player.quest == "started"
+```
+
+- `global.<имя>` — общая серверная переменная.
+- `player.<имя>` — переменная, относящаяся к конкретному игроку.
+- `exists(global.score)` — проверяет, существует ли переменная.
+- `action.enter:` и `action.exit:` — задают условие для соответствующего события входа в зону или выхода из неё.
+- Условия можно объединять логическими операторами, например `&&` и `||`.
+
+Используйте внутриигровую справку по условиям, чтобы посмотреть синтаксис и примеры, поддерживаемые установленной версией мода.
+
+## Настройки в игре
+
+В меню настроек доступны следующие параметры:
+
+- Дальность отображения границ зон: 4, 8, 12 или 16 чанков (по умолчанию — 8).
+- Включение короткой команды `/mz` (по умолчанию — включена).
+- Отображение названий зон над границами (по умолчанию — включено).
+
+Настройки хранятся в файле:
+
+```text
+config/mapperzones/settings.json
+```
+
+## Что уже реализовано
+
+- Внутриигровой GUI для управления триггерными зонами.
+- Визуальные границы зон и их названия.
+- Настраиваемая дальность отображения границ.
+- События зон, включая вход, выход и проверку времени пребывания.
+- Режим `oneTime` для однократного выполнения событий.
+- Выражения условий и проверка существования переменных.
+- Серверные переменные `global` и персональные переменные `player`.
+- Управление переменными через GUI.
+- Локализация интерфейса и справка по условиям.
+- Необязательный псевдоним команды `/mz`.
+- Внутриигровое меню настроек.

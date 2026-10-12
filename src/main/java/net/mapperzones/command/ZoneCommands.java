@@ -17,6 +17,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.mapperzones.data.MapperData;
+import net.mapperzones.config.MapperZonesSettings;
 import net.mapperzones.item.ModItems;
 import net.mapperzones.item.ZoneWandItem;
 import net.mapperzones.network.ModNetwork;
@@ -37,8 +38,9 @@ public final class ZoneCommands {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        MapperZonesSettings.load();
         dispatcher.register(buildRoot("mapperzones"));
-        dispatcher.register(buildRoot("mz"));
+        if (MapperZonesSettings.shortCommandEnabled()) dispatcher.register(buildRoot("mz"));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> buildRoot(String literal) {

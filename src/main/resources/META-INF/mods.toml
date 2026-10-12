@@ -5,8 +5,9 @@ license="MIT"
 modId="mapperzones"
 version="1.0.0"
 displayName="Mapper Zones"
-authors="Mapper Zones contributors"
-description='''Server-authoritative trigger zones, conditions, actions, and variables for adventure maps.'''
+logoFile="logo.png"
+authors="klinokGS"
+description='''Trigger zones, conditions, actions, and variables for map making'''
 [[dependencies.mapperzones]]
 modId="forge"
 mandatory=true

@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.mapperzones.item.ModItems;
+import net.mapperzones.config.MapperZonesSettings;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
@@ -18,8 +19,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  * Renders zone boundaries only while the selection wand is held.
  */
 public final class ZoneRenderer {
-    /** Render zones whose nearest chunk is at most this many chunks from the player. */
-    private static final int MAX_CHUNK_DISTANCE = 8;
     private record ZoneLabel(double x, double y, double z, String text, int color) { }
     @SubscribeEvent
     public void render(RenderLevelStageEvent event) {
@@ -62,13 +61,14 @@ public final class ZoneRenderer {
                 int playerChunkZ = minecraft.player.chunkPosition().z;
                 int dx = playerChunkX < minChunkX ? minChunkX - playerChunkX : playerChunkX > maxChunkX ? playerChunkX - maxChunkX : 0;
                 int dz = playerChunkZ < minChunkZ ? minChunkZ - playerChunkZ : playerChunkZ > maxChunkZ ? playerChunkZ - maxChunkZ : 0;
-                if ((long) dx * dx + (long) dz * dz > (long) MAX_CHUNK_DISTANCE * MAX_CHUNK_DISTANCE) continue;
+                int maxChunkDistance = MapperZonesSettings.highlightDistance();
+                if ((long) dx * dx + (long) dz * dz > (long) maxChunkDistance * maxChunkDistance) continue;
                 boolean enabled = !zone.has("enabled") || zone.get("enabled").getAsBoolean();
                 float red = enabled ? 0.1F : 1.0F;
                 float green = enabled ? 1.0F : 0.15F;
                 float blue = 0.2F;
                 String zoneName = zone.has("name") ? zone.get("name").getAsString() : "Unnamed zone";
-                if (camera.distanceToSqr((minX + maxX) / 2.0, maxY + 0.25, (minZ + maxZ) / 2.0) <= 48.0 * 48.0) {
+                if (MapperZonesSettings.showZoneNames() && camera.distanceToSqr((minX + maxX) / 2.0, maxY + 0.25, (minZ + maxZ) / 2.0) <= 48.0 * 48.0) {
                     String labelText = enabled ? zoneName : zoneName + " [OFF]";
                     labels.add(new ZoneLabel((minX + maxX) / 2.0, maxY + 0.25, (minZ + maxZ) / 2.0, labelText, enabled ? 0xFFB8FFB8 : 0xFFFF7777));
                 }

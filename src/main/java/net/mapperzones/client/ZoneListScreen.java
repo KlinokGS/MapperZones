@@ -4,12 +4,16 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.renderer.GameRenderer;
 import net.mapperzones.network.ModNetwork;
 import com.google.gson.JsonObject;
 
 import java.util.*;
 
 public class ZoneListScreen extends Screen {
+    private static final ResourceLocation MOD_LOGO = new ResourceLocation("mapperzones", "textures/gui/mapperzones_logo.png");
     private int page = 0;
     private static final int PER_PAGE = 6;
 
@@ -19,6 +23,9 @@ public class ZoneListScreen extends Screen {
 
     @Override
     protected void init() {
+
+        addRenderableWidget(Button.builder(Component.empty(), b -> minecraft.setScreen(new SettingsScreen(this)))
+                .bounds(6, 6, 20, 20).tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("screen.mapperzones.settings.open"))).build());
 
         int left = width / 2 - 150, top = 45;
 
@@ -56,6 +63,15 @@ public class ZoneListScreen extends Screen {
         g.drawCenteredString(font, title.getString(), width / 2, 18, 0xFFFFFF);
         g.drawCenteredString(font, Component.translatable("screen.mapperzones.zone_count", ClientData.ZONES.size()).getString(), width / 2, 31, 0xA0D8FF);
         super.render(g, mx, my, pt);
+        // Draw the logo after widgets so it appears over the blank settings button.
+        // Explicitly restore the GUI texture shader and alpha blending: other renderers may
+        // leave a different shader/blend state active when this screen is drawn.
+        RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        RenderSystem.setShaderTexture(0, MOD_LOGO);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        g.blit(MOD_LOGO, 7, 7, 18, 18, 0, 0, 128, 128, 128, 128);
     }
 
     @Override

@@ -174,5 +174,15 @@
   "message.mapperzones.variable_update_missing": "The source variable \"%s\" no longer exists. The list has been refreshed.",
   "message.mapperzones.variable_update_conflict": "Scope %s already contains a variable named \"%s\". Move cancelled; the existing variable was not changed.",
   "message.mapperzones.variable_updated": "Variable updated: %s: %s.",
-  "screen.mapperzones.help.exists_desc": "Unknown variable names make the condition false. Use exists(name) to check before reading it."
+  "screen.mapperzones.help.exists_desc": "Unknown variable names make the condition false. Use exists(name) to check before reading it.",
+  "screen.mapperzones.settings.title": "Mapper Zones Settings",
+  "screen.mapperzones.settings.subtitle": "The /mz alias changes after restarting",
+  "screen.mapperzones.settings.open": "Settings",
+  "screen.mapperzones.settings.distance": "Zone highlight distance: %s chunks",
+  "screen.mapperzones.settings.short_command": "Short command /mz: %s",
+  "screen.mapperzones.settings.zone_names": "Boundary names: %s",
+  "screen.mapperzones.settings.enabled": "ON",
+  "screen.mapperzones.settings.disabled": "OFF",
+  "screen.mapperzones.settings.save": "Save",
+  "screen.mapperzones.settings.back": "Back"
 }

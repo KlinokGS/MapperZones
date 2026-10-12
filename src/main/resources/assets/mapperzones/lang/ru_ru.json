@@ -174,5 +174,15 @@
   "message.mapperzones.variable_update_missing": "Исходная переменная «%s» больше не существует. Список обновлён.",
   "message.mapperzones.variable_update_conflict": "В области %s уже существует переменная «%s». Перенос отменён, существующая переменная не изменена.",
   "message.mapperzones.variable_updated": "Переменная обновлена: %s: %s.",
-  "screen.mapperzones.help.exists_desc": "Если переменная не существует, условие считается ложным. Используйте exists(name), чтобы проверить её наличие перед чтением."
+  "screen.mapperzones.help.exists_desc": "Если переменная не существует, условие считается ложным. Используйте exists(name), чтобы проверить её наличие перед чтением.",
+  "screen.mapperzones.settings.title": "Настройки Mapper Zones",
+  "screen.mapperzones.settings.subtitle": "Короткая команда /mz применяется после перезапуска",
+  "screen.mapperzones.settings.open": "Настройки",
+  "screen.mapperzones.settings.distance": "Дальность подсветки в чанках: %s",
+  "screen.mapperzones.settings.short_command": "Короткая команда /mz: %s",
+  "screen.mapperzones.settings.zone_names": "Названия границ: %s",
+  "screen.mapperzones.settings.enabled": "ВКЛ",
+  "screen.mapperzones.settings.disabled": "ВЫКЛ",
+  "screen.mapperzones.settings.save": "Сохранить",
+  "screen.mapperzones.settings.back": "Назад"
 }
