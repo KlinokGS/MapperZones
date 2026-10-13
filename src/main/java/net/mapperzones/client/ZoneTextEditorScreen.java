@@ -18,6 +18,9 @@ public final class ZoneTextEditorScreen extends Screen {
     private final Consumer<String> onSave;
     private final StringBuilder text = new StringBuilder();
     private int cursor;
+    /** Selection anchor; -1 means there is no active selection. */
+    private int selectionAnchor = -1;
+    private boolean draggingSelection;
     private int firstVisibleLine;
     private int areaX, areaY, areaW, areaH;
     private boolean focused = true;
@@ -53,8 +56,39 @@ public final class ZoneTextEditorScreen extends Screen {
                 .bounds(width - margin - 68, bottom, 68, 20).build());
     }
 
+    private boolean hasSelection() { return selectionAnchor >= 0 && selectionAnchor != cursor; }
+    private int selectionStart() { return Math.min(selectionAnchor, cursor); }
+    private int selectionEnd() { return Math.max(selectionAnchor, cursor); }
+    private void clearSelection() { selectionAnchor = -1; }
+    private void beginMove(boolean selecting) {
+        if (selecting) {
+            if (selectionAnchor < 0) selectionAnchor = cursor;
+        } else clearSelection();
+    }
+    private void deleteSelection() {
+        if (!hasSelection()) return;
+        int start = selectionStart(), end = selectionEnd();
+        text.delete(start, end);
+        cursor = start;
+        clearSelection();
+    }
     private void insert(String value) {
+        deleteSelection();
         text.insert(cursor, value); cursor += value.length(); ensureCursorVisible();
+    }
+    private boolean controlDown(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0 || (modifiers & GLFW.GLFW_MOD_SUPER) != 0;
+    }
+    private int positionAt(double mx, double my) {
+        List<String> ls = lines();
+        int row = firstVisibleLine + Math.max(0, (int)(my - areaY - 6) / font.lineHeight);
+        row = Math.min(row, ls.size() - 1);
+        String line = ls.get(row);
+        int targetX = (int) mx - (areaX + 30), col = 0;
+        while (col < line.length() && font.width(line.substring(0, col + 1)) < targetX) col++;
+        int pos = 0;
+        for (int i = 0; i < row; i++) pos += ls.get(i).length() + 1;
+        return Math.min(text.length(), pos + col);
     }
 
     private int lineStart(int pos) { int p = Math.min(pos, text.length()); while (p > 0 && text.charAt(p - 1) != '\n') p--; return p; }
@@ -76,44 +110,86 @@ public final class ZoneTextEditorScreen extends Screen {
 
     @Override public boolean charTyped(char ch, int modifiers) {
         if (!focused || Character.isISOControl(ch)) return super.charTyped(ch, modifiers);
-        if (text.length() < 32760) { text.insert(cursor, ch); cursor++; ensureCursorVisible(); }
+        if (text.length() < 32760) insert(String.valueOf(ch));
         return true;
     }
 
     @Override public boolean keyPressed(int key, int scanCode, int modifiers) {
         if (key == GLFW.GLFW_KEY_ESCAPE) { minecraft.setScreen(parent); return true; }
+        boolean ctrl = controlDown(modifiers);
+        boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
+        if (ctrl && key == GLFW.GLFW_KEY_A) {
+            selectionAnchor = 0; cursor = text.length(); ensureCursorVisible(); return true;
+        }
+        if (ctrl && key == GLFW.GLFW_KEY_C) {
+            if (hasSelection()) minecraft.keyboardHandler.setClipboard(text.substring(selectionStart(), selectionEnd()));
+            return true;
+        }
+        if (ctrl && key == GLFW.GLFW_KEY_X) {
+            if (hasSelection()) { minecraft.keyboardHandler.setClipboard(text.substring(selectionStart(), selectionEnd())); deleteSelection(); }
+            return true;
+        }
+        if (ctrl && key == GLFW.GLFW_KEY_V) {
+            String clip = minecraft.keyboardHandler.getClipboard();
+            if (clip != null && !clip.isEmpty()) insert(clip.replace("\r", "").substring(0, Math.min(clip.replace("\r", "").length(), 32760 - text.length() + (hasSelection() ? selectionEnd() - selectionStart() : 0))));
+            return true;
+        }
         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { insert("\n"); return true; }
         if (key == GLFW.GLFW_KEY_BACKSPACE) {
-            if (cursor > 0) { text.deleteCharAt(cursor - 1); cursor--; ensureCursorVisible(); } return true;
-        }
-        if (key == GLFW.GLFW_KEY_DELETE) {
-            if (cursor < text.length()) text.deleteCharAt(cursor); return true;
-        }
-        if (key == GLFW.GLFW_KEY_LEFT) { if(cursor>0)cursor--; ensureCursorVisible(); return true; }
-        if (key == GLFW.GLFW_KEY_RIGHT) { if(cursor<text.length())cursor++; ensureCursorVisible(); return true; }
-        if (key == GLFW.GLFW_KEY_HOME) { cursor=lineStart(cursor); return true; }
-        if (key == GLFW.GLFW_KEY_END) { cursor=lineEnd(cursor); return true; }
-        if (key == GLFW.GLFW_KEY_UP || key == GLFW.GLFW_KEY_DOWN) {
-            int start=lineStart(cursor), col=cursor-start;
-            if(key==GLFW.GLFW_KEY_UP && start>0) { int prevEnd=start-1, prevStart=lineStart(prevEnd); cursor=Math.min(prevStart+col,prevEnd); }
-            else if(key==GLFW.GLFW_KEY_DOWN) { int end=lineEnd(cursor); if(end<text.length()) cursor=Math.min(end+1+col,lineEnd(end+1)); }
+            if (hasSelection()) deleteSelection();
+            else if (cursor > 0) { text.deleteCharAt(cursor - 1); cursor--; }
             ensureCursorVisible(); return true;
         }
-        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && key == GLFW.GLFW_KEY_A) { cursor=text.length(); return true; }
+        if (key == GLFW.GLFW_KEY_DELETE) {
+            if (hasSelection()) deleteSelection(); else if (cursor < text.length()) text.deleteCharAt(cursor);
+            ensureCursorVisible(); return true;
+        }
+        if (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT || key == GLFW.GLFW_KEY_HOME || key == GLFW.GLFW_KEY_END || key == GLFW.GLFW_KEY_UP || key == GLFW.GLFW_KEY_DOWN) {
+            beginMove(shift);
+            if (!shift && hasSelection() && (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT)) {
+                cursor = key == GLFW.GLFW_KEY_LEFT ? selectionStart() : selectionEnd(); clearSelection();
+            } else if (key == GLFW.GLFW_KEY_LEFT) { if(cursor>0)cursor--; }
+            else if (key == GLFW.GLFW_KEY_RIGHT) { if(cursor<text.length())cursor++; }
+            else if (key == GLFW.GLFW_KEY_HOME) cursor=lineStart(cursor);
+            else if (key == GLFW.GLFW_KEY_END) cursor=lineEnd(cursor);
+            else {
+                int start=lineStart(cursor), col=cursor-start;
+                if(key==GLFW.GLFW_KEY_UP && start>0) { int prevEnd=start-1, prevStart=lineStart(prevEnd); cursor=Math.min(prevStart+col,prevEnd); }
+                else if(key==GLFW.GLFW_KEY_DOWN) { int end=lineEnd(cursor); if(end<text.length()) cursor=Math.min(end+1+col,lineEnd(end+1)); }
+            }
+            if (!shift) clearSelection();
+            ensureCursorVisible(); return true;
+        }
         return super.keyPressed(key, scanCode, modifiers);
     }
 
     @Override public boolean mouseClicked(double mx, double my, int button) {
         if (button == 0 && mx >= areaX && mx <= areaX + areaW && my >= areaY && my <= areaY + areaH) {
             focused = true;
-            int row = firstVisibleLine + Math.max(0, (int)(my - areaY - 6) / font.lineHeight);
-            List<String> ls=lines(); row=Math.min(row,ls.size()-1);
-            int colX=areaX+8; int col=0;
-            while(col<ls.get(row).length() && colX + font.width(ls.get(row).substring(0,col+1)) < mx) col++;
-            int pos=0; for(int i=0;i<row;i++) pos+=ls.get(i).length()+1;
-            cursor=Math.min(text.length(),pos+col); return true;
+            cursor = positionAt(mx, my);
+            selectionAnchor = cursor;
+            draggingSelection = true;
+            return true;
         }
         return super.mouseClicked(mx,my,button);
+    }
+
+    @Override public boolean mouseDragged(double mx, double my, int button, double dragX, double dragY) {
+        if (draggingSelection && button == 0) {
+            cursor = positionAt(mx, Math.max(areaY + 1, Math.min(areaY + areaH - 1, my)));
+            ensureCursorVisible();
+            return true;
+        }
+        return super.mouseDragged(mx, my, button, dragX, dragY);
+    }
+
+    @Override public boolean mouseReleased(double mx, double my, int button) {
+        if (button == 0 && draggingSelection) {
+            draggingSelection = false;
+            if (!hasSelection()) clearSelection();
+            return true;
+        }
+        return super.mouseReleased(mx, my, button);
     }
 
     @Override public boolean mouseScrolled(double mx, double my, double delta) {
@@ -132,6 +208,15 @@ public final class ZoneTextEditorScreen extends Screen {
         for(int row=firstVisibleLine;row<Math.min(ls.size(),firstVisibleLine+visible);row++) {
             String line=ls.get(row); int yy=areaY+6+(row-firstVisibleLine)*font.lineHeight;
             g.drawString(font,String.format(Locale.ROOT,"%02d",row+1),areaX+5,yy,0xFF7F8C98);
+            if (hasSelection()) {
+                int lineStart = 0; for (int li = 0; li < row; li++) lineStart += ls.get(li).length() + 1; int start = Math.max(selectionStart(), lineStart), end = Math.min(selectionEnd(), lineStart + line.length());
+                if (start < end) {
+                    String before = line.substring(0, start - lineStart);
+                    String selected = line.substring(start - lineStart, end - lineStart);
+                    int sx = areaX + 30 + font.width(before), ex = sx + font.width(selected);
+                    g.fill(sx, yy - 1, ex, yy + font.lineHeight - 1, 0xA0608CFF);
+                }
+            }
             drawHighlighted(g,line,areaX+30,yy,Math.max(20,areaW-38));
             if(lineNumber(cursor)==row && focused) {
                 String before=line.substring(0,Math.max(0,Math.min(line.length(),cursor-lineStart(cursor))));

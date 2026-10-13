@@ -530,8 +530,20 @@ public final class ZoneManager {
             }
             case "zone" -> {
                 if (a.length < 3) return;
-                TriggerZone z = data.zones.get(a[2].toLowerCase(Locale.ROOT));
-                if (z == null) return;
+                // Use the same case-insensitive name normalization as commands and GUI.
+                final String zoneName = a[2];
+                String zoneKey = zoneName.toLowerCase(Locale.ROOT);
+                TriggerZone z = data.zones.get(zoneKey);
+                if (z == null) {
+                    // Older/imported zone data may have a key that differs from the display name.
+                    z = data.zones.values().stream()
+                            .filter(candidate -> candidate.name.equalsIgnoreCase(zoneName))
+                            .findFirst().orElse(null);
+                }
+                if (z == null) {
+                    net.mapperzones.MapperZonesMod.LOGGER.warn("MapperZones: zone action references unknown zone '{}': {}", a[2], raw);
+                    return;
+                }
                 switch (a[1].toLowerCase(Locale.ROOT)) {
                     case "enable" -> z.enabled = true;
                     case "disable" -> { z.enabled = false; z.currentlyInside.clear(); z.nextStayAt.clear(); }
@@ -544,10 +556,16 @@ public final class ZoneManager {
                         z.nextStayAt.clear();
                     }
                     default -> {
+                        net.mapperzones.MapperZonesMod.LOGGER.warn("MapperZones: unknown zone action '{}': {}", a[1], raw);
                         return;
                     }
                 }
                 data.dirty();
+                // Zone state is authoritative on the server, but boundaries and labels are
+                // rendered from the client snapshot. Refresh all connected operators/clients.
+                for (ServerPlayer online : p.getServer().getPlayerList().getPlayers()) {
+                    net.mapperzones.network.ModNetwork.sync(online);
+                }
             }
             default -> {
                 if (raw.startsWith("command:")) runCommand(p, raw.substring(8), data);
@@ -562,10 +580,42 @@ public final class ZoneManager {
     }
 
     public static String expand(MapperData d, ServerPlayer p, String text) {
-        String out = text.replace("${player.name}", p.getGameProfile().getName());
+        String out = text;
+        // Built-in player properties available to action placeholders.
+        Map<String, String> properties = new LinkedHashMap<>();
+        properties.put("name", p.getGameProfile().getName());
+        properties.put("uuid", p.getUUID().toString());
+        properties.put("gamemode", p.gameMode.getGameModeForPlayer().getName());
+        properties.put("health", Double.toString(p.getHealth()));
+        properties.put("max_health", Double.toString(p.getMaxHealth()));
+        properties.put("absorption", Double.toString(p.getAbsorptionAmount()));
+        properties.put("food", Integer.toString(p.getFoodData().getFoodLevel()));
+        properties.put("saturation", Float.toString(p.getFoodData().getSaturationLevel()));
+        properties.put("level", Integer.toString(p.experienceLevel));
+        properties.put("experience", Float.toString(p.experienceProgress));
+        properties.put("x", Double.toString(p.getX()));
+        properties.put("y", Double.toString(p.getY()));
+        properties.put("z", Double.toString(p.getZ()));
+        properties.put("dimension", p.level().dimension().location().toString());
+        properties.put("armor", Integer.toString(p.getArmorValue()));
+        properties.put("air", Integer.toString(p.getAirSupply()));
+        properties.put("max_air", Integer.toString(p.getMaxAirSupply()));
+        properties.put("on_ground", Boolean.toString(p.onGround()));
+        properties.put("sprinting", Boolean.toString(p.isSprinting()));
+        properties.put("sneaking", Boolean.toString(p.isCrouching()));
+        properties.put("alive", Boolean.toString(p.isAlive()));
+        properties.put("in_water", Boolean.toString(p.isInWater()));
+        properties.put("underwater", Boolean.toString(p.isUnderWater()));
+        properties.put("invisible", Boolean.toString(p.isInvisible()));
+        properties.put("sleeping", Boolean.toString(p.isSleeping()));
+        properties.put("team", p.getTeam() == null ? "" : p.getTeam().getName());
         for (var e : d.globalVars.entrySet()) out = out.replace("${" + e.getKey() + "}", e.getValue());
         for (var e : d.playerVars.getOrDefault(p.getUUID(), Map.of()).entrySet())
             out = out.replace("${player." + e.getKey() + "}", e.getValue());
+        // Built-in properties take precedence over custom variables with reserved names.
+        for (var e : properties.entrySet()) {
+            out = out.replace("${player." + e.getKey() + "}", e.getValue());
+        }
         return out;
     }
 }

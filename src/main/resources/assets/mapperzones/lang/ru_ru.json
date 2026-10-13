@@ -87,7 +87,7 @@
   "screen.mapperzones.example": "Пример",
   "screen.mapperzones.action_example_count": "Пример %s / %s",
   "screen.mapperzones.syntax": "Синтаксис",
-  "screen.mapperzones.what_it_does": "Что делает",
+  "screen.mapperzones.what_it_does": "Действие",
   "screen.mapperzones.details": "Подробности",
   "screen.mapperzones.legacy_action_note": "Для известных типов действий также поддерживается старый синтаксис с пробелами.",
   "screen.mapperzones.scroll_hint": "Прокрутите, чтобы прочитать дальше",
@@ -184,5 +184,14 @@
   "screen.mapperzones.settings.enabled": "ВКЛ",
   "screen.mapperzones.settings.disabled": "ВЫКЛ",
   "screen.mapperzones.settings.save": "Сохранить",
-  "screen.mapperzones.settings.back": "Назад"
+  "screen.mapperzones.settings.back": "Назад",
+  "screen.mapperzones.action_category.player_properties": "Свойства игрока",
+  "screen.mapperzones.action_helper.player_identity_description": "Подставить имя игрока и UUID в текст команды.",
+  "screen.mapperzones.action_helper.player_identity_notes": "Используйте ${player.name} и ${player.uuid}.",
+  "screen.mapperzones.action_helper.player_status_description": "Использовать актуальные свойства состояния игрока в действиях.",
+  "screen.mapperzones.action_helper.player_status_notes": "Примеры: ${player.gamemode}, ${player.alive}, ${player.sprinting}, ${player.sneaking}, ${player.in_water}, ${player.underwater}, ${player.invisible}, ${player.sleeping}.",
+  "screen.mapperzones.action_helper.player_stats_description": "Использовать значения здоровья, голода, брони и опыта.",
+  "screen.mapperzones.action_helper.player_stats_notes": "Доступны: ${player.health}, ${player.max_health}, ${player.absorption}, ${player.food}, ${player.saturation}, ${player.level}, ${player.experience}, ${player.armor}, ${player.air}, ${player.max_air}.",
+  "screen.mapperzones.action_helper.player_position_description": "Подставить координаты игрока и сведения о мире.",
+  "screen.mapperzones.action_helper.player_position_notes": "Доступны: ${player.x}, ${player.y}, ${player.z}, ${player.dimension}, ${player.team}. Значения вычисляются в момент выполнения действия."
 }

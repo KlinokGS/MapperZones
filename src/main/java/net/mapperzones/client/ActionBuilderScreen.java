@@ -35,7 +35,12 @@ public class ActionBuilderScreen extends Screen {
             new Example("redstone:100 64 100 40", Component.translatable("screen.mapperzones.action_helper.redtone_description").getString(), Component.translatable("screen.mapperzones.action_helper.redtone_notes").getString()),
             new Example("zone:disable intro", Component.translatable("screen.mapperzones.action_helper.disable_description").getString(), Component.translatable("screen.mapperzones.action_helper.disable_notes").getString()),
             new Example("zone:enable intro", Component.translatable("screen.mapperzones.action_helper.enable_description").getString(), Component.translatable("screen.mapperzones.action_helper.enable_notes").getString()),
-            new Example("zone:reset intro", Component.translatable("screen.mapperzones.action_helper.reset_description").getString(), Component.translatable("screen.mapperzones.action_helper.reset_notes").getString())))
+            new Example("zone:reset intro", Component.translatable("screen.mapperzones.action_helper.reset_description").getString(), Component.translatable("screen.mapperzones.action_helper.reset_notes").getString()))),
+        new Category("player_properties", "Player properties", List.of(
+            new Example("command:say ${player.name} (${player.uuid})", Component.translatable("screen.mapperzones.action_helper.player_identity_description").getString(), Component.translatable("screen.mapperzones.action_helper.player_identity_notes").getString()),
+            new Example("command:effect give ${player.name} minecraft:speed 5 0", Component.translatable("screen.mapperzones.action_helper.player_status_description").getString(), Component.translatable("screen.mapperzones.action_helper.player_status_notes").getString()),
+            new Example("command:say HP=${player.health}/${player.max_health} food=${player.food}", Component.translatable("screen.mapperzones.action_helper.player_stats_description").getString(), Component.translatable("screen.mapperzones.action_helper.player_stats_notes").getString()),
+            new Example("command:tp ${player.name} ${player.x} ${player.y} ${player.z}", Component.translatable("screen.mapperzones.action_helper.player_position_description").getString(), Component.translatable("screen.mapperzones.action_helper.player_position_notes").getString())))
     );
 
     public ActionBuilderScreen(Screen parent) {

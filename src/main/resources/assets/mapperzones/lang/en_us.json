@@ -87,7 +87,7 @@
   "screen.mapperzones.example": "Example",
   "screen.mapperzones.action_example_count": "Example %s / %s",
   "screen.mapperzones.syntax": "Syntax",
-  "screen.mapperzones.what_it_does": "What it does",
+  "screen.mapperzones.what_it_does": "Action",
   "screen.mapperzones.details": "Details",
   "screen.mapperzones.legacy_action_note": "Legacy whitespace syntax is also supported for known action types.",
   "screen.mapperzones.scroll_hint": "Scroll to read more",
@@ -184,5 +184,14 @@
   "screen.mapperzones.settings.enabled": "ON",
   "screen.mapperzones.settings.disabled": "OFF",
   "screen.mapperzones.settings.save": "Save",
-  "screen.mapperzones.settings.back": "Back"
+  "screen.mapperzones.settings.back": "Back",
+  "screen.mapperzones.action_category.player_properties": "Player properties",
+  "screen.mapperzones.action_helper.player_identity_description": "Insert the player name and UUID into command text.",
+  "screen.mapperzones.action_helper.player_identity_notes": "Use ${player.name} and ${player.uuid}.",
+  "screen.mapperzones.action_helper.player_status_description": "Use live player status properties in actions.",
+  "screen.mapperzones.action_helper.player_status_notes": "Examples: ${player.gamemode}, ${player.alive}, ${player.sprinting}, ${player.sneaking}, ${player.in_water}, ${player.underwater}, ${player.invisible}, ${player.sleeping}.",
+  "screen.mapperzones.action_helper.player_stats_description": "Use health, hunger, armor and experience values.",
+  "screen.mapperzones.action_helper.player_stats_notes": "Available: ${player.health}, ${player.max_health}, ${player.absorption}, ${player.food}, ${player.saturation}, ${player.level}, ${player.experience}, ${player.armor}, ${player.air}, ${player.max_air}.",
+  "screen.mapperzones.action_helper.player_position_description": "Insert the player position and world information.",
+  "screen.mapperzones.action_helper.player_position_notes": "Available: ${player.x}, ${player.y}, ${player.z}, ${player.dimension}, ${player.team}. Values are resolved when the action runs."
 }
