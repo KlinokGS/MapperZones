@@ -17,6 +17,7 @@ public final class MapperZonesSettings {
     private static int highlightDistance = 8;
     private static boolean shortCommandEnabled = true;
     private static boolean showZoneNames = true;
+    private static boolean actionErrorsInChat = true;
     private static boolean loaded;
 
     private MapperZonesSettings() {}
@@ -33,6 +34,7 @@ public final class MapperZonesSettings {
                 }
                 if (json.has("shortCommandEnabled")) shortCommandEnabled = json.get("shortCommandEnabled").getAsBoolean();
                 if (json.has("showZoneNames")) showZoneNames = json.get("showZoneNames").getAsBoolean();
+                if (json.has("actionErrorsInChat")) actionErrorsInChat = json.get("actionErrorsInChat").getAsBoolean();
             } else {
                 save();
             }
@@ -48,6 +50,7 @@ public final class MapperZonesSettings {
             json.addProperty("highlightDistance", highlightDistance);
             json.addProperty("shortCommandEnabled", shortCommandEnabled);
             json.addProperty("showZoneNames", showZoneNames);
+            json.addProperty("actionErrorsInChat", actionErrorsInChat);
             Files.writeString(FILE, GSON.toJson(json), StandardCharsets.UTF_8);
             loaded = true;
         } catch (IOException exception) {
@@ -58,6 +61,7 @@ public final class MapperZonesSettings {
     public static int highlightDistance() { load(); return highlightDistance; }
     public static boolean shortCommandEnabled() { load(); return shortCommandEnabled; }
     public static boolean showZoneNames() { load(); return showZoneNames; }
+    public static boolean actionErrorsInChat() { load(); return actionErrorsInChat; }
     public static void setHighlightDistance(int value) {
         if (value == 4 || value == 8 || value == 12 || value == 16) highlightDistance = value;
     }
@@ -66,4 +70,5 @@ public final class MapperZonesSettings {
     }
     public static void setShortCommandEnabled(boolean value) { shortCommandEnabled = value; }
     public static void setShowZoneNames(boolean value) { showZoneNames = value; }
+    public static void setActionErrorsInChat(boolean value) { actionErrorsInChat = value; }
 }

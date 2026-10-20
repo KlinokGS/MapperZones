@@ -17,7 +17,13 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -28,6 +34,7 @@ import java.util.*;
 public final class ZoneManager {
     private static final PriorityQueue<RedstoneRestore> REDSTONE = new PriorityQueue<>(Comparator.comparingLong(RedstoneRestore::at));
     private static final Map<UUID, Long> FREEZE_UNTIL = new HashMap<>();
+    private static final Set<String> REPORTED_CONDITION_ERRORS = new HashSet<>();
 
     private record RedstoneRestore(long at, ResourceLocation dim, BlockPos pos, BlockState old) {
     }
@@ -52,7 +59,12 @@ public final class ZoneManager {
             data.dirty();
             processedScheduled++;
             try { executeAction(scheduledPlayer, data, pending.getString("action")); }
-            catch (Exception ex) { net.mapperzones.MapperZonesMod.LOGGER.warn("Scheduled action failed for {}: {}", scheduledPlayer.getGameProfile().getName(), pending.getString("action"), ex); }
+            catch (Exception ex) {
+                String action = pending.getString("action");
+                net.mapperzones.MapperZonesMod.LOGGER.warn("Scheduled action failed for {}: {}", scheduledPlayer.getGameProfile().getName(), action, ex);
+                if (net.mapperzones.config.MapperZonesSettings.actionErrorsInChat())
+                    scheduledPlayer.sendSystemMessage(net.minecraft.network.chat.Component.literal("Action failed for " + scheduledPlayer.getGameProfile().getName() + ": " + action));
+            }
         }
         RedstoneRestore r;
         int guard = 0;
@@ -174,6 +186,7 @@ public final class ZoneManager {
                 if (c.isEmpty()) return false;
             } else if (c.regionMatches(true, 0, "action.", 0, 7)) {
                 // A malformed action-scoped condition should fail closed, not silently act as a global condition.
+                reportConditionError(z, p, raw, new IllegalArgumentException("Invalid action condition prefix"));
                 return false;
             }
             try {
@@ -226,10 +239,26 @@ public final class ZoneManager {
                 }
                 if (!new ConditionParser(c, p, d).parse()) return false;
             } catch (Exception ex) {
+                reportConditionError(z, p, raw, ex);
                 return false;
             }
         }
         return true;
+    }
+
+    private static void reportConditionError(TriggerZone zone, ServerPlayer player, String expression, Exception error) {
+        String playerName = player.getGameProfile().getName();
+        // Conditions can be evaluated every tick; log/report each broken expression once per player/zone to avoid spam.
+        String key = player.getUUID() + "|" + zone.name.toLowerCase(Locale.ROOT) + "|" + expression;
+        synchronized (REPORTED_CONDITION_ERRORS) {
+            if (!REPORTED_CONDITION_ERRORS.add(key)) return;
+        }
+        net.mapperzones.MapperZonesMod.LOGGER.warn("Condition error for {} in zone '{}': {}", playerName, zone.name, expression, error);
+        if (!net.mapperzones.config.MapperZonesSettings.actionErrorsInChat()) return;
+        String detail = error.getMessage();
+        if (detail == null || detail.isBlank()) detail = error.getClass().getSimpleName();
+        player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                "Condition error for " + playerName + " in zone '" + zone.name + "': " + expression + " (" + detail + ")"));
     }
 
     private static boolean compareValues(String left, String op, String right) {
@@ -251,7 +280,7 @@ public final class ZoneManager {
     /** Small expression parser for player/global variables, comparisons, parentheses, && and ||. */
     private static final class ConditionParser {
         private static final java.util.regex.Pattern TOKEN = java.util.regex.Pattern.compile(
-                "\\s*(>=|<=|==|!=|&&|\\|\\||[()!<>]|\"(?:\\\\.|[^\"])*\"|'(?:\\\\.|[^'])*'|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)|[A-Za-z_][A-Za-z0-9_./:-]*)");
+                "\\s*(blockAt\\([-+]?\\d+\\s*,\\s*[-+]?\\d+\\s*,\\s*[-+]?\\d+\\)\\.[A-Za-z_]+|>=|<=|==|!=|&&|\\|\\||[()!<>]|\"(?:\\\\.|[^\"])*\"|'(?:\\\\.|[^'])*'|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)|[A-Za-z_][A-Za-z0-9_./:-]*)");
         private final List<String> tokens = new ArrayList<>();
         private final ServerPlayer player;
         private final MapperData data;
@@ -325,6 +354,7 @@ public final class ZoneManager {
 
         private Object resolve(String key) {
             String k = key.toLowerCase(Locale.ROOT);
+            if (k.startsWith("blockat(")) return readBlockProperty(key, player.serverLevel());
             return switch (k) {
                 // Backwards-compatible aliases.
                 case "health", "player.health" -> (double) player.getHealth();
@@ -371,9 +401,23 @@ public final class ZoneManager {
                     if (data.globalVars.containsKey(key)) yield data.globalVars.get(key);
                     if (data.playerVars.getOrDefault(player.getUUID(), Map.of()).containsKey(key))
                         yield data.playerVars.get(player.getUUID()).get(key);
+                    if (Set.of("north", "south", "east", "west", "up", "down", "x", "y", "z", "upper", "lower", "left", "right").contains(k)) yield k;
                     throw new IllegalArgumentException("Unknown variable: " + key);
                 }
             };
+        }
+
+        private Object readBlockProperty(String expression, ServerLevel level) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)^blockAt\\((-?\\d+)\\s*,\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\)\\.([A-Za-z_]+)$").matcher(expression);
+            if (!m.matches()) throw new IllegalArgumentException("Invalid blockAt expression");
+            BlockPos pos = new BlockPos(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
+            if (!level.hasChunkAt(pos)) throw new IllegalArgumentException("Block chunk is not loaded");
+            BlockState state = level.getBlockState(pos);
+            Property<?> property = findBlockProperty(state, m.group(4));
+            if (property == null) throw new IllegalArgumentException("Block does not support property: " + m.group(4));
+            Comparable<?> value = state.getValue(property);
+            if (value instanceof Boolean b) return b;
+            return value.toString().toLowerCase(Locale.ROOT);
         }
 
         private boolean compareObjects(Object left, String op, Object right) {
@@ -417,12 +461,19 @@ public final class ZoneManager {
                 executeAction(p, data, a);
             } catch (Exception ex) {
                 net.mapperzones.MapperZonesMod.LOGGER.warn("Action failed for {}: {}", p.getGameProfile().getName(), a, ex);
+                if (net.mapperzones.config.MapperZonesSettings.actionErrorsInChat())
+                    p.sendSystemMessage(net.minecraft.network.chat.Component.literal("Action failed for " + p.getGameProfile().getName() + ": " + a));
             }
     }
 
     public static void executeAction(ServerPlayer p, MapperData data, String raw) {
         if (raw == null || raw.isBlank()) return;
         String input = raw.trim();
+        java.util.regex.Matcher blockSet = java.util.regex.Pattern.compile("(?i)^blockAt\\((-?\\d+)\\s*,\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\)\\.([A-Za-z_]+)\\s*=\\s*([A-Za-z0-9_-]+)$").matcher(input);
+        if (blockSet.matches()) {
+            setBlockProperty(p, p.serverLevel(), Integer.parseInt(blockSet.group(1)), Integer.parseInt(blockSet.group(2)), Integer.parseInt(blockSet.group(3)), blockSet.group(4), blockSet.group(5));
+            return;
+        }
         String[] a = input.split("\\s+");
         String type = a[0].toLowerCase(Locale.ROOT);
         String tail = input.length() > a[0].length() ? input.substring(a[0].length()).trim() : "";
@@ -571,6 +622,42 @@ public final class ZoneManager {
                 if (raw.startsWith("command:")) runCommand(p, raw.substring(8), data);
             }
         }
+    }
+
+    private static Property<?> findBlockProperty(BlockState state, String requested) {
+        String name = requested.equalsIgnoreCase("direction") ? "facing" : requested;
+        for (Property<?> property : state.getProperties())
+            if (property.getName().equalsIgnoreCase(name)) return property;
+        return null;
+    }
+
+    private static void setBlockProperty(ServerPlayer actor, ServerLevel level, int x, int y, int z, String requested, String value) {
+        BlockPos pos = new BlockPos(x, y, z);
+        if (!level.hasChunkAt(pos)) throw new IllegalArgumentException("Block chunk is not loaded at " + pos);
+        BlockState state = level.getBlockState(pos);
+        Property<?> property = findBlockProperty(state, requested);
+        if (property == null) throw new IllegalArgumentException("Block " + state.getBlock() + " does not support property " + requested);
+        setPropertyValue(actor, level, pos, state, property, value);
+    }
+
+    private static <T extends Comparable<T>> void setPropertyValue(ServerPlayer actor, ServerLevel level, BlockPos pos, BlockState state, Property<T> property, String value) {
+        String normalized = value.toLowerCase(Locale.ROOT);
+        Optional<T> parsed = property.getValue(normalized);
+        if (parsed.isEmpty()) throw new IllegalArgumentException("Invalid value '" + value + "' for property " + property.getName());
+
+        // Use the vanilla door operation rather than directly editing OPEN. The
+        // vanilla method updates both halves and emits the correct block updates/sound.
+        // Direct state writes can appear to work on the server but leave doors closed
+        // or immediately reset, especially for iron doors without redstone power.
+        if (state.getBlock() instanceof DoorBlock
+                && property.getName().equalsIgnoreCase("open")
+                && state.hasProperty(BlockStateProperties.OPEN)) {
+            ((DoorBlock) state.getBlock()).setOpen(actor, level, state, pos, Boolean.parseBoolean(normalized));
+            return;
+        }
+
+        BlockState changed = state.setValue(property, parsed.get());
+        level.setBlock(pos, changed, 3);
     }
 
     private static void runCommand(ServerPlayer p, String cmd, MapperData d) {

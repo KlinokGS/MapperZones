@@ -40,6 +40,14 @@ public final class ConditionHelpScreen extends Screen {
         y = wrapped(g, tr("player_props_3"), x, y, maxWidth, 0xE0E8FF);
         y = separator(g, x, y, maxWidth);
 
+        y = heading(g, tr("block_properties"), x, y, maxWidth, 0x80D8FF);
+        y = wrapped(g, tr("block_properties_desc"), x, y, maxWidth, 0xE0E8FF);
+        y = wrapped(g, tr("block_condition_1"), x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, tr("block_condition_2"), x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, tr("block_condition_3"), x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, tr("block_properties_list"), x, y, maxWidth, 0xBFBFBF);
+        y = separator(g, x, y, maxWidth);
+
         y = heading(g, tr("custom_variables"), x, y, maxWidth, 0xA0FFB0);
         y = wrapped(g, tr("global_vars"), x, y, maxWidth, 0xE0E8FF);
         y = wrapped(g, tr("player_vars"), x, y, maxWidth, 0xE0E8FF);

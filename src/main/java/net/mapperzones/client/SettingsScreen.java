@@ -11,9 +11,11 @@ public final class SettingsScreen extends Screen {
     private Button distanceButton;
     private Button commandButton;
     private Button namesButton;
+    private Button errorsButton;
     private int draftDistance;
     private boolean draftShortCommand;
     private boolean draftZoneNames;
+    private boolean draftActionErrorsInChat;
 
     public SettingsScreen(Screen parent) {
         super(Component.translatable("screen.mapperzones.settings.title"));
@@ -22,6 +24,7 @@ public final class SettingsScreen extends Screen {
         draftDistance = MapperZonesSettings.highlightDistance();
         draftShortCommand = MapperZonesSettings.shortCommandEnabled();
         draftZoneNames = MapperZonesSettings.showZoneNames();
+        draftActionErrorsInChat = MapperZonesSettings.actionErrorsInChat();
     }
 
     @Override
@@ -29,7 +32,7 @@ public final class SettingsScreen extends Screen {
         int center = width / 2;
         int buttonWidth = Math.min(300, width - 40);
         int left = center - buttonWidth / 2;
-        int top = Math.max(58, height / 2 - 65);
+        int top = Math.max(48, height / 2 - 78);
 
         distanceButton = addRenderableWidget(Button.builder(distanceLabel(), b -> {
             draftDistance = switch (draftDistance) { case 4 -> 8; case 8 -> 12; case 12 -> 16; default -> 4; };
@@ -44,6 +47,11 @@ public final class SettingsScreen extends Screen {
             b.setMessage(namesLabel());
         }).bounds(left, top + 68, buttonWidth, 24).build());
 
+        errorsButton = addRenderableWidget(Button.builder(errorsLabel(), b -> {
+            draftActionErrorsInChat = !draftActionErrorsInChat;
+            b.setMessage(errorsLabel());
+        }).bounds(left, top + 102, buttonWidth, 24).build());
+
         int bottomY = height - 36;
         int gap = 8;
         int half = (buttonWidth - gap) / 2;
@@ -52,6 +60,7 @@ public final class SettingsScreen extends Screen {
                 MapperZonesSettings.setHighlightDistance(draftDistance);
                 MapperZonesSettings.setShortCommandEnabled(draftShortCommand);
                 MapperZonesSettings.setShowZoneNames(draftZoneNames);
+                MapperZonesSettings.setActionErrorsInChat(draftActionErrorsInChat);
                 MapperZonesSettings.save();
                 minecraft.setScreen(parent);
             } catch (RuntimeException exception) {
@@ -62,6 +71,7 @@ public final class SettingsScreen extends Screen {
             draftDistance = MapperZonesSettings.highlightDistance();
             draftShortCommand = MapperZonesSettings.shortCommandEnabled();
             draftZoneNames = MapperZonesSettings.showZoneNames();
+            draftActionErrorsInChat = MapperZonesSettings.actionErrorsInChat();
             minecraft.setScreen(parent);
         }).bounds(left + half + gap, bottomY, half, 20).build());
     }
@@ -71,6 +81,9 @@ public final class SettingsScreen extends Screen {
     }
     private Component commandLabel() {
         return Component.translatable("screen.mapperzones.settings.short_command", toggle(draftShortCommand));
+    }
+    private Component errorsLabel() {
+        return Component.translatable("screen.mapperzones.settings.errors_chat", toggle(draftActionErrorsInChat));
     }
     private Component namesLabel() {
         return Component.translatable("screen.mapperzones.settings.zone_names", toggle(draftZoneNames));

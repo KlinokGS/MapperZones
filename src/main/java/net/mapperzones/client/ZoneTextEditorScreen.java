@@ -49,11 +49,11 @@ public final class ZoneTextEditorScreen extends Screen {
                 minecraft.setScreen(new ActionBuilderScreen(this));
             }
         }).bounds(margin, bottom, Math.min(100, Math.max(76, areaW / 5)), 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.save"), b -> {
-            onSave.accept(text.toString()); minecraft.setScreen(parent);
-        }).bounds(width - margin - 142, bottom, 68, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.back"), b -> minecraft.setScreen(parent))
-                .bounds(width - margin - 68, bottom, 68, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.save"), b -> saveAndReturn())
+                .bounds(width - margin - 142, bottom, 68, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.back"), b -> {
+            if (minecraft != null) minecraft.setScreen(parent);
+        }).bounds(width - margin - 68, bottom, 68, 20).build());
     }
 
     private boolean hasSelection() { return selectionAnchor >= 0 && selectionAnchor != cursor; }
@@ -114,8 +114,15 @@ public final class ZoneTextEditorScreen extends Screen {
         return true;
     }
 
+    private void saveAndReturn() {
+        onSave.accept(text.toString());
+        if (minecraft != null) minecraft.setScreen(parent);
+    }
+
+    @Override public void onClose() { if (minecraft != null) minecraft.setScreen(parent); }
+
     @Override public boolean keyPressed(int key, int scanCode, int modifiers) {
-        if (key == GLFW.GLFW_KEY_ESCAPE) { minecraft.setScreen(parent); return true; }
+        if (key == GLFW.GLFW_KEY_ESCAPE) { if (minecraft != null) minecraft.setScreen(parent); return true; }
         boolean ctrl = controlDown(modifiers);
         boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
         if (ctrl && key == GLFW.GLFW_KEY_A) {

@@ -193,5 +193,19 @@
   "screen.mapperzones.action_helper.player_stats_description": "Use health, hunger, armor and experience values.",
   "screen.mapperzones.action_helper.player_stats_notes": "Available: ${player.health}, ${player.max_health}, ${player.absorption}, ${player.food}, ${player.saturation}, ${player.level}, ${player.experience}, ${player.armor}, ${player.air}, ${player.max_air}.",
   "screen.mapperzones.action_helper.player_position_description": "Insert the player position and world information.",
-  "screen.mapperzones.action_helper.player_position_notes": "Available: ${player.x}, ${player.y}, ${player.z}, ${player.dimension}, ${player.team}. Values are resolved when the action runs."
+  "screen.mapperzones.action_helper.player_position_notes": "Available: ${player.x}, ${player.y}, ${player.z}, ${player.dimension}, ${player.team}. Values are resolved when the action runs.",
+  "screen.mapperzones.help.block_properties": "Blocks and properties",
+  "screen.mapperzones.help.block_properties_desc": "blockAt(x,y,z) addresses a block by world coordinates. Conditions read its state; if the chunk is unloaded or the block lacks the property, the condition fails.",
+  "screen.mapperzones.help.block_condition_1": "blockAt(100,64,200).powered == true",
+  "screen.mapperzones.help.block_condition_2": "blockAt(100,64,200).direction == north",
+  "screen.mapperzones.help.block_condition_3": "blockAt(100,64,200).open == true && blockAt(100,64,200).lit == false",
+  "screen.mapperzones.help.block_properties_list": "Properties: powered, open, direction (maps to facing), lit, axis, extended. Availability depends on block type; direction commonly accepts north, south, east or west, and axis accepts x, y or z.",
+  "screen.mapperzones.action_category.block_properties": "Blocks & properties",
+  "screen.mapperzones.action_helper.block_direction_description": "Set a block direction through its facing property.",
+  "screen.mapperzones.action_helper.block_direction_notes": "Example: blockAt(100,64,200).direction = north. Valid values depend on the block.",
+  "screen.mapperzones.action_helper.block_open_description": "Change open on a block that supports this property.",
+  "screen.mapperzones.action_helper.block_open_notes": "Example: blockAt(100,64,200).open = true",
+  "screen.mapperzones.action_helper.block_other_description": "Change lit, axis or extended when the selected block supports the property.",
+  "screen.mapperzones.action_helper.block_other_notes": "Examples: blockAt(100,64,200).lit = true; blockAt(100,64,200).axis = x; blockAt(100,64,200).extended = false. Invalid values are logged.",
+  "screen.mapperzones.settings.errors_chat": "Action and condition errors in chat: %s"
 }

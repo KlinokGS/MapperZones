@@ -36,6 +36,10 @@ public class ActionBuilderScreen extends Screen {
             new Example("zone:disable intro", Component.translatable("screen.mapperzones.action_helper.disable_description").getString(), Component.translatable("screen.mapperzones.action_helper.disable_notes").getString()),
             new Example("zone:enable intro", Component.translatable("screen.mapperzones.action_helper.enable_description").getString(), Component.translatable("screen.mapperzones.action_helper.enable_notes").getString()),
             new Example("zone:reset intro", Component.translatable("screen.mapperzones.action_helper.reset_description").getString(), Component.translatable("screen.mapperzones.action_helper.reset_notes").getString()))),
+        new Category("block_properties", "Blocks & properties", List.of(
+            new Example("blockAt(100,64,200).direction = north", Component.translatable("screen.mapperzones.action_helper.block_direction_description").getString(), Component.translatable("screen.mapperzones.action_helper.block_direction_notes").getString()),
+            new Example("blockAt(100,64,200).open = true", Component.translatable("screen.mapperzones.action_helper.block_open_description").getString(), Component.translatable("screen.mapperzones.action_helper.block_open_notes").getString()),
+            new Example("blockAt(100,64,200).lit = true", Component.translatable("screen.mapperzones.action_helper.block_other_description").getString(), Component.translatable("screen.mapperzones.action_helper.block_other_notes").getString()))),
         new Category("player_properties", "Player properties", List.of(
             new Example("command:say ${player.name} (${player.uuid})", Component.translatable("screen.mapperzones.action_helper.player_identity_description").getString(), Component.translatable("screen.mapperzones.action_helper.player_identity_notes").getString()),
             new Example("command:effect give ${player.name} minecraft:speed 5 0", Component.translatable("screen.mapperzones.action_helper.player_status_description").getString(), Component.translatable("screen.mapperzones.action_helper.player_status_notes").getString()),

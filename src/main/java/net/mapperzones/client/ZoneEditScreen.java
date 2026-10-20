@@ -69,7 +69,17 @@ public class ZoneEditScreen extends Screen {
     }
     private void openEditor(String target) { minecraft.setScreen(new ZoneTextEditorScreen(this, target, getText(target), value -> setText(target, value))); }
     private String getText(String target) { return switch (target) { case "enter" -> enterText; case "exit" -> exitText; case "stay" -> stayText; default -> conditionsText; }; }
-    private void setText(String target, String value) { switch (target) { case "enter" -> enterText=value; case "exit" -> exitText=value; case "stay" -> stayText=value; default -> conditionsText=value; } }
+    private void setText(String target, String value) {
+        switch (target) {
+            case "enter" -> { enterText = value; source.add("enterActions", toArray(value)); }
+            case "exit" -> { exitText = value; source.add("exitActions", toArray(value)); }
+            case "stay" -> { stayText = value; source.add("stayActions", toArray(value)); }
+            default -> { conditionsText = value; source.add("conditions", toArray(value)); }
+        }
+        // Persist each action/condition editor as soon as it is closed, rather than
+        // relying on the separate Save button on the zone overview screen.
+        ModNetwork.saveZone(source.toString());
+    }
     private static String list(JsonObject o, String k) { if (o == null || !o.has(k) || !o.get(k).isJsonArray()) return ""; StringJoiner j = new StringJoiner("\n"); for (JsonElement e:o.getAsJsonArray(k)) j.add(e.getAsString()); return j.toString(); }
     static List<String> parseLines(String s) { List<String> out = new ArrayList<>(); for (String x : s.split("[;\\n]")) { String v=x.trim(); if (!v.isEmpty()) out.add(v); } return out; }
     private static JsonArray toArray(String s) { JsonArray a=new JsonArray(); parseLines(s).forEach(a::add); return a; }
