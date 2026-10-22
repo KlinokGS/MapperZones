@@ -17,7 +17,7 @@ import java.util.*;
 import java.util.function.Supplier;
 
 public final class ModNetwork {
-    private static final String PROTOCOL = "1";
+    private static final String PROTOCOL = "2";
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(new ResourceLocation(MapperZonesMod.MODID, "main"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);
     private static int id = 0;
 
@@ -49,8 +49,19 @@ public final class ModNetwork {
 
         d.globalVars.forEach(vars::addProperty);
         JsonObject playerVars = new JsonObject();
-
-        d.playerVars.getOrDefault(p.getUUID(), Map.of()).forEach(playerVars::addProperty);
+        Set<UUID> knownPlayers = new LinkedHashSet<>(d.playerVars.keySet());
+        p.getServer().getPlayerList().getPlayers().forEach(sp -> knownPlayers.add(sp.getUUID()));
+        for (UUID uuid : knownPlayers) {
+            JsonObject entry = new JsonObject();
+            String playerName = p.getServer().getPlayerList().getPlayer(uuid) != null
+                    ? p.getServer().getPlayerList().getPlayer(uuid).getGameProfile().getName()
+                    : p.getServer().getProfileCache().get(uuid).map(com.mojang.authlib.GameProfile::getName).orElse(uuid.toString());
+            entry.addProperty("name", playerName);
+            JsonObject personal = new JsonObject();
+            d.playerVars.getOrDefault(uuid, Map.of()).forEach(personal::addProperty);
+            entry.add("vars", personal);
+            playerVars.add(uuid.toString(), entry);
+        }
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new Snapshot(zones.toString(), vars.toString(), playerVars.toString()));
     }
 
@@ -157,15 +168,16 @@ public final class ModNetwork {
         }
     }
 
-    public record SetVariable(String scope, String name, String value) {
+    public record SetVariable(String scope, String targetUuid, String name, String value) {
         static void encode(SetVariable m, FriendlyByteBuf b) {
             b.writeUtf(m.scope, 16);
+            b.writeUtf(m.targetUuid, 40);
             b.writeUtf(m.name, 128);
             b.writeUtf(m.value, 1024);
         }
 
         static SetVariable decode(FriendlyByteBuf b) {
-            return new SetVariable(b.readUtf(16), b.readUtf(128), b.readUtf(1024));
+            return new SetVariable(b.readUtf(16), b.readUtf(40), b.readUtf(128), b.readUtf(1024));
         }
 
         static void handle(SetVariable m, Supplier<NetworkEvent.Context> c) {
@@ -176,8 +188,11 @@ public final class ModNetwork {
                 MapperData d = MapperData.get(p.serverLevel());
 
                 if (m.scope.equals("global")) d.globalVars.put(m.name, m.value);
-                else if (m.scope.equals("player"))
-                    d.playerVars.computeIfAbsent(p.getUUID(), u -> new LinkedHashMap<>()).put(m.name, m.value);
+                else if (m.scope.equals("player")) {
+                    UUID target;
+                    try { target = UUID.fromString(m.targetUuid); } catch (Exception ex) { return; }
+                    d.playerVars.computeIfAbsent(target, u -> new LinkedHashMap<>()).put(m.name, m.value);
+                }
                 else return;
                 d.dirty();
                 sync(p);
@@ -187,9 +202,10 @@ public final class ModNetwork {
     }
 
     /** Atomically updates a variable, optionally renaming it or moving it between scopes. */
-    public record UpdateVariable(String oldScope, String oldName, String newScope, String newName, String value) {
+    public record UpdateVariable(String oldScope, String targetUuid, String oldName, String newScope, String newName, String value) {
         static void encode(UpdateVariable m, FriendlyByteBuf b) {
             b.writeUtf(m.oldScope, 16);
+            b.writeUtf(m.targetUuid, 40);
             b.writeUtf(m.oldName, 128);
             b.writeUtf(m.newScope, 16);
             b.writeUtf(m.newName, 128);
@@ -197,7 +213,7 @@ public final class ModNetwork {
         }
 
         static UpdateVariable decode(FriendlyByteBuf b) {
-            return new UpdateVariable(b.readUtf(16), b.readUtf(128), b.readUtf(16), b.readUtf(128), b.readUtf(1024));
+            return new UpdateVariable(b.readUtf(16), b.readUtf(40), b.readUtf(128), b.readUtf(16), b.readUtf(128), b.readUtf(1024));
         }
 
         static void handle(UpdateVariable m, Supplier<NetworkEvent.Context> c) {
@@ -213,8 +229,11 @@ public final class ModNetwork {
                 }
 
                 MapperData d = MapperData.get(p.serverLevel());
-                Map<String, String> oldMap = variableMap(d, m.oldScope, p);
-                Map<String, String> newMap = variableMap(d, m.newScope, p);
+                UUID targetUuid;
+                try { targetUuid = m.targetUuid.isBlank() ? p.getUUID() : UUID.fromString(m.targetUuid); }
+                catch (Exception ex) { p.sendSystemMessage(Component.translatable("message.mapperzones.variable_update_invalid")); return; }
+                Map<String, String> oldMap = variableMap(d, m.oldScope, targetUuid);
+                Map<String, String> newMap = variableMap(d, m.newScope, targetUuid);
                 if (oldMap == null || newMap == null || !oldMap.containsKey(m.oldName)) {
                     p.sendSystemMessage(Component.translatable("message.mapperzones.variable_update_missing", m.oldName));
                     sync(p);
@@ -229,8 +248,8 @@ public final class ModNetwork {
                 }
 
                 oldMap.remove(m.oldName);
-                if (oldMap.isEmpty() && m.oldScope.equals("player")) d.playerVars.remove(p.getUUID());
-                variableMap(d, m.newScope, p).put(m.newName, m.value);
+                if (oldMap.isEmpty() && m.oldScope.equals("player")) d.playerVars.remove(targetUuid);
+                variableMap(d, m.newScope, targetUuid).put(m.newName, m.value);
                 d.dirty();
                 sync(p);
                 p.sendSystemMessage(Component.translatable("message.mapperzones.variable_updated", m.newScope, m.newName));
@@ -239,26 +258,41 @@ public final class ModNetwork {
         }
     }
 
-    private static Map<String, String> variableMap(MapperData d, String scope, ServerPlayer p) {
+    private static Map<String, String> variableMap(MapperData d, String scope, UUID target) {
         if (scope.equals("global")) return d.globalVars;
-        if (scope.equals("player")) return d.playerVars.computeIfAbsent(p.getUUID(), u -> new LinkedHashMap<>());
+        if (scope.equals("player")) return d.playerVars.computeIfAbsent(target, u -> new LinkedHashMap<>());
         return null;
     }
 
-    public record RemoveVariable(String scope, String name) {
-        static void encode(RemoveVariable m, FriendlyByteBuf b) { b.writeUtf(m.scope, 16); b.writeUtf(m.name, 128); }
-        static RemoveVariable decode(FriendlyByteBuf b) { return new RemoveVariable(b.readUtf(16), b.readUtf(128)); }
+    public record RemoveVariable(String scope, String targetUuid, String name) {
+        static void encode(RemoveVariable m, FriendlyByteBuf b) { b.writeUtf(m.scope, 16); b.writeUtf(m.targetUuid, 40); b.writeUtf(m.name, 128); }
+        static RemoveVariable decode(FriendlyByteBuf b) { return new RemoveVariable(b.readUtf(16), b.readUtf(40), b.readUtf(128)); }
         static void handle(RemoveVariable m, Supplier<NetworkEvent.Context> c) {
             c.get().enqueueWork(() -> {
                 ServerPlayer p = c.get().getSender();
                 if (p == null || !p.hasPermissions(2)) return;
                 MapperData d = MapperData.get(p.serverLevel());
                 boolean removed;
-                if (m.scope.equals("global")) removed = d.globalVars.remove(m.name) != null;
-                else if (m.scope.equals("player")) {
-                    Map<String,String> vars = d.playerVars.get(p.getUUID());
-                    removed = vars != null && vars.remove(m.name) != null;
-                    if (vars != null && vars.isEmpty()) d.playerVars.remove(p.getUUID());
+                if (m.scope.equals("global")) {
+                    removed = d.globalVars.remove(m.name) != null;
+                } else if (m.scope.equals("player")) {
+                    if ("*".equals(m.targetUuid)) {
+                        // Explicit all-player mode: remove this variable from every saved player record,
+                        // including offline players that are not currently listed in the client GUI.
+                        removed = false;
+                        Iterator<Map.Entry<UUID, Map<String, String>>> it = d.playerVars.entrySet().iterator();
+                        while (it.hasNext()) {
+                            Map<String, String> vars = it.next().getValue();
+                            if (vars.remove(m.name) != null) removed = true;
+                            if (vars.isEmpty()) it.remove();
+                        }
+                    } else {
+                        UUID target;
+                        try { target = UUID.fromString(m.targetUuid); } catch (Exception ex) { return; }
+                        Map<String,String> vars = d.playerVars.get(target);
+                        removed = vars != null && vars.remove(m.name) != null;
+                        if (vars != null && vars.isEmpty()) d.playerVars.remove(target);
+                    }
                 } else return;
                 if (removed) d.dirty();
                 sync(p);
@@ -293,15 +327,15 @@ public final class ModNetwork {
         CHANNEL.sendToServer(new DeleteZone(name));
     }
 
-    public static void setVariable(String scope, String name, String value) {
-        CHANNEL.sendToServer(new SetVariable(scope, name, value));
+    public static void setVariable(String scope, String targetUuid, String name, String value) {
+        CHANNEL.sendToServer(new SetVariable(scope, targetUuid == null ? "" : targetUuid, name, value));
     }
 
-    public static void updateVariable(String oldScope, String oldName, String newScope, String newName, String value) {
-        CHANNEL.sendToServer(new UpdateVariable(oldScope, oldName, newScope, newName, value));
+    public static void updateVariable(String oldScope, String targetUuid, String oldName, String newScope, String newName, String value) {
+        CHANNEL.sendToServer(new UpdateVariable(oldScope, targetUuid == null ? "" : targetUuid, oldName, newScope, newName, value));
     }
 
-    public static void removeVariable(String scope, String name) { CHANNEL.sendToServer(new RemoveVariable(scope, name)); }
+    public static void removeVariable(String scope, String targetUuid, String name) { CHANNEL.sendToServer(new RemoveVariable(scope, targetUuid == null ? "" : targetUuid, name)); }
 
     public static void requestSync() {
         CHANNEL.sendToServer(new RequestSync());

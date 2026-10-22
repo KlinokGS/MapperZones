@@ -25,6 +25,20 @@ public final class ZoneTextEditorScreen extends Screen {
     private int areaX, areaY, areaW, areaH;
     private boolean focused = true;
 
+    static final java.util.regex.Pattern syntax = java.util.regex.Pattern.compile(
+            "(?i)(?<string>\\\"(?:\\\\.|[^\\\"])*\\\"|'(?:\\\\.|[^'])*')"
+                    + "|(?<marker>\\b(?:command|sound|particle|effect|teleport|zone|redstone|inventory):|"
+                    + "\\bblockAt(?=\\s*\\()|\\bvar\\.(?:player|global)\\.|\\bzone\\.)"
+                    + "|(?<actionTag>\\baction\\.(?:enter|stay|exit):?)"
+                    + "|(?<function>\\bexists(?=\\s*\\())"
+                    + "|(?<playerProperty>\\bplayer\\.[A-Za-z_][A-Za-z0-9_]*\\b)"
+                    + "|(?<globalProperty>\\bglobal\\.[A-Za-z_][A-Za-z0-9_]*\\b)"
+                    + "|(?<operation>\\.(?:set|remove|open|direction|powered|lit|axis|extended|disable|enable|reset)\\b)"
+                    + "|(?<number>(?<![\\w.])[-+]?\\d+(?:\\.\\d+)?\\b)"
+                    + "|(?<logical>&&|\\|\\||==|!=|<=|>=|[<>!])"
+                    + "|(?<value>\\b(?:true|false)\\b|@[pares])"
+    );
+
     public ZoneTextEditorScreen(Screen parent, String kind, String initial, Consumer<String> onSave) {
         super(Component.translatable(titleKey(kind)));
         this.parent = parent;
@@ -247,33 +261,64 @@ public final class ZoneTextEditorScreen extends Screen {
     }
 
     private void drawHighlighted(GuiGraphics g, String s, int x, int y, int maxWidth) {
-        if (!kind.equals("conditions")) {
-            int color = 0xFFDADADA;
-            if (s.startsWith("command:") || s.startsWith("sound:") || s.startsWith("particle:") || s.startsWith("effect:") || s.startsWith("teleport:") || s.startsWith("zone:") || s.startsWith("redstone:")) color = 0xFF8BFFA0;
-            g.drawString(font, Component.literal(trimToWidth(s, maxWidth)), x, y, color);
-            return;
-        }
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\\"(?:\\\\.|[^\\\"])*\\\"|'(?:\\\\.|[^'])*'|(?:>=|<=|==|!=|&&|\\|\\||[()!<>])|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)|[A-Za-z_][A-Za-z0-9_./:-]*|\\s+|.").matcher(s);
+        // Shared, token-based syntax highlighting for conditions and actions.
+        // Matches are found anywhere in the line, so leading spaces never affect highlighting.
+        final int baseColor = 0xFFDADADA;
+        final int markerColor = 0xFF928EFF;   // command tags, blockAt, var.player/global prefixes
+        final int operationColor = 0xFFC57EFF; // .set, .remove, block properties and zone operations
+        final int numberColor = 0xFF2CF7FF;   // command-like cyan numbers
+        final int logicalColor = 0xFFFFA24A;  // boolean/comparison operators
+        final int functionColor = 0xFF78E6D0; // exists(...)
+        final int actionTagColor = 0xFFFFA6D7; // action.enter/stay/exit
+        final int playerColor = 0xFF8BD5FF;   // player.* properties
+        final int globalColor = 0xFF8BFFA0;   // legacy global.* references
+        final int valueColor = 0xFFF9FF5C;    // true/false and selectors
+        final int stringColor = 0xFFFFC98B;
+
+        java.util.regex.Matcher matcher = syntax.matcher(s);
         int drawX = x;
+        int pos = 0;
         int used = 0;
         while (matcher.find()) {
+            if (matcher.start() > pos) {
+                String plain = s.substring(pos, matcher.start());
+                int w = font.width(plain);
+                if (used + w > maxWidth) {
+                    String clipped = trimToWidth(plain, Math.max(0, maxWidth - used));
+                    if (!clipped.isEmpty()) g.drawString(font, Component.literal(clipped), drawX, y, baseColor, false);
+                    return;
+                }
+                if (!plain.isEmpty()) g.drawString(font, Component.literal(plain), drawX, y, baseColor, false);
+                drawX += w;
+                used += w;
+            }
             String token = matcher.group();
-            int color = 0xFFDADADA;
-            String lower = token.toLowerCase(Locale.ROOT);
-            if (token.isBlank()) color = 0xFFDADADA;
-            else if (lower.matches("action\\.(enter|stay|exit):?")) color = 0xFFFFA6D7;
-            else if (token.startsWith("\"") || token.startsWith("'")) color = 0xFFFFC98B;
-            else if (token.matches("[-+]?(?:\\d+\\.?\\d*|\\.\\d+)")) color = 0xFFB9A0FF;
-            else if (java.util.Set.of("&&", "||", "==", "!=", ">", "<", ">=", "<=", "!", "(", ")").contains(token)) color = 0xFFFFD166;
-            else if (lower.equals("exists")) color = 0xFF78E6D0;
-            else if (lower.startsWith("player.")) color = 0xFF8BD5FF;
-            else if (lower.startsWith("global.")) color = 0xFF8BFFA0;
-            else if (java.util.Set.of("true", "false", "item", "team", "time", "weather", "dim", "var").contains(lower)) color = 0xFFFFA6D7;
-            int tokenWidth = font.width(token);
-            if (used + tokenWidth > maxWidth) break;
-            if (!token.isBlank()) g.drawString(font, Component.literal(token), drawX, y, color, false);
-            drawX += tokenWidth;
-            used += tokenWidth;
+            int w = font.width(token);
+            if (used + w > maxWidth) {
+                String clipped = trimToWidth(token, Math.max(0, maxWidth - used));
+                if (!clipped.isEmpty()) g.drawString(font, Component.literal(clipped), drawX, y, baseColor, false);
+                return;
+            }
+            int color;
+            if (matcher.group("string") != null) color = stringColor;
+            else if (matcher.group("operation") != null) color = operationColor;
+            else if (matcher.group("number") != null) color = numberColor;
+            else if (matcher.group("logical") != null) color = logicalColor;
+            else if (matcher.group("function") != null) color = functionColor;
+            else if (matcher.group("actionTag") != null) color = actionTagColor;
+            else if (matcher.group("playerProperty") != null) color = playerColor;
+            else if (matcher.group("globalProperty") != null) color = globalColor;
+            else if (matcher.group("value") != null) color = valueColor;
+            else color = markerColor;
+            g.drawString(font, Component.literal(token), drawX, y, color, false);
+            drawX += w;
+            used += w;
+            pos = matcher.end();
+        }
+        if (pos < s.length() && used < maxWidth) {
+            String tail = s.substring(pos);
+            String clipped = trimToWidth(tail, maxWidth - used);
+            if (!clipped.isEmpty()) g.drawString(font, Component.literal(clipped), drawX, y, baseColor, false);
         }
     }
 

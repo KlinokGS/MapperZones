@@ -54,6 +54,9 @@ public final class ConditionHelpScreen extends Screen {
         y = wrapped(g, tr("variable_examples"), x, y, maxWidth, 0x8BFFA0);
         y = wrapped(g, "exists(global.score) && global.score >= 5", x, y, maxWidth, 0x78E6D0);
         y = wrapped(g, "exists(player.quest) && player.quest == \"started\"", x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, "var.player.health == \"started\"", x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, "var.global.score >= 5 && exists(var.player.key)", x, y, maxWidth, 0x78E6D0);
+        y = wrapped(g, tr("vars_prefix_desc"), x, y, maxWidth, 0xE0E8FF);
         y = wrapped(g, tr("exists_desc"), x, y, maxWidth, 0xE0E8FF);
         y = separator(g, x, y, maxWidth);
 

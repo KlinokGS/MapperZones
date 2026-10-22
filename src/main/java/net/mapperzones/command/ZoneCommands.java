@@ -12,6 +12,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -26,6 +27,7 @@ import net.mapperzones.zone.TriggerZone;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -313,97 +315,133 @@ public final class ZoneCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> variableCommand() {
-        LiteralArgumentBuilder<CommandSourceStack> set = Commands.literal("set").then(Commands.argument("scope", StringArgumentType.word()).then(Commands.argument("name", StringArgumentType.word()).then(Commands.argument("value", StringArgumentType.greedyString()).executes(context -> setVariable(context.getSource(), StringArgumentType.getString(context, "scope"), StringArgumentType.getString(context, "name"), StringArgumentType.getString(context, "value"))))));
+        var globalSetValue = Commands.argument("value", StringArgumentType.greedyString())
+                .executes(ctx -> setVariable(ctx.getSource(), "global", null,
+                        StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "value")));
+        var globalSetName = Commands.argument("name", StringArgumentType.word()).then(globalSetValue);
+        var playerSetValue = Commands.argument("value", StringArgumentType.greedyString())
+                .executes(ctx -> setForTargets(ctx.getSource(), EntityArgument.getPlayers(ctx, "targets"),
+                        StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "value")));
+        var playerSetName = Commands.argument("name", StringArgumentType.word()).then(playerSetValue);
+        var playerSetTargets = Commands.argument("targets", EntityArgument.players()).then(playerSetName);
+        LiteralArgumentBuilder<CommandSourceStack> set = Commands.literal("set")
+                .then(Commands.literal("global").then(globalSetName))
+                .then(Commands.literal("player").then(playerSetTargets));
 
-        LiteralArgumentBuilder<CommandSourceStack> get = Commands.literal("get").then(Commands.argument("scope", StringArgumentType.word()).then(Commands.argument("name", StringArgumentType.word()).executes(context -> getVariable(context.getSource(), StringArgumentType.getString(context, "scope"), StringArgumentType.getString(context, "name")))));
+        var globalGetName = Commands.argument("name", StringArgumentType.word())
+                .executes(ctx -> getVariable(ctx.getSource(), "global", null, StringArgumentType.getString(ctx, "name")));
+        var playerGetName = Commands.argument("name", StringArgumentType.word())
+                .executes(ctx -> getForTargets(ctx.getSource(), EntityArgument.getPlayers(ctx, "targets"), StringArgumentType.getString(ctx, "name")));
+        var playerGetTargets = Commands.argument("targets", EntityArgument.players()).then(playerGetName);
+        LiteralArgumentBuilder<CommandSourceStack> get = Commands.literal("get")
+                .then(Commands.literal("global").then(globalGetName))
+                .then(Commands.literal("player").then(playerGetTargets));
 
-        LiteralArgumentBuilder<CommandSourceStack> add = Commands.literal("add").then(Commands.argument("scope", StringArgumentType.word()).then(Commands.argument("name", StringArgumentType.word()).then(Commands.argument("amount", DoubleArgumentType.doubleArg()).executes(context -> addVariable(context.getSource(), StringArgumentType.getString(context, "scope"), StringArgumentType.getString(context, "name"), DoubleArgumentType.getDouble(context, "amount"))))));
+        var globalAddAmount = Commands.argument("amount", DoubleArgumentType.doubleArg())
+                .executes(ctx -> addVariable(ctx.getSource(), "global", null, StringArgumentType.getString(ctx, "name"), DoubleArgumentType.getDouble(ctx, "amount")));
+        var globalAddName = Commands.argument("name", StringArgumentType.word()).then(globalAddAmount);
+        var playerAddAmount = Commands.argument("amount", DoubleArgumentType.doubleArg())
+                .executes(ctx -> addForTargets(ctx.getSource(), EntityArgument.getPlayers(ctx, "targets"), StringArgumentType.getString(ctx, "name"), DoubleArgumentType.getDouble(ctx, "amount")));
+        var playerAddName = Commands.argument("name", StringArgumentType.word()).then(playerAddAmount);
+        var playerAddTargets = Commands.argument("targets", EntityArgument.players()).then(playerAddName);
+        LiteralArgumentBuilder<CommandSourceStack> add = Commands.literal("add")
+                .then(Commands.literal("global").then(globalAddName))
+                .then(Commands.literal("player").then(playerAddTargets));
 
-        LiteralArgumentBuilder<CommandSourceStack> remove = Commands.literal("remove").then(Commands.argument("scope", StringArgumentType.word()).then(Commands.argument("name", StringArgumentType.word()).executes(context -> removeVariable(context.getSource(), StringArgumentType.getString(context, "scope"), StringArgumentType.getString(context, "name")))));
+        var globalRemoveName = Commands.argument("name", StringArgumentType.word())
+                .executes(ctx -> removeVariable(ctx.getSource(), "global", null, StringArgumentType.getString(ctx, "name")));
+        var playerRemoveName = Commands.argument("name", StringArgumentType.word())
+                .executes(ctx -> removeForTargets(ctx.getSource(), EntityArgument.getPlayers(ctx, "targets"), StringArgumentType.getString(ctx, "name")));
+        var playerRemoveTargets = Commands.argument("targets", EntityArgument.players()).then(playerRemoveName);
+        LiteralArgumentBuilder<CommandSourceStack> remove = Commands.literal("remove")
+                .then(Commands.literal("global").then(globalRemoveName))
+                .then(Commands.literal("player").then(playerRemoveTargets));
         return Commands.literal("var").then(set).then(get).then(add).then(remove);
     }
 
-    private static int setVariable(CommandSourceStack source, String scope, String name, String value) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int setForTargets(CommandSourceStack source, Collection<ServerPlayer> targets, String name, String value) {
+        if (name.length() > 128 || value.length() > 1024) { source.sendFailure(Component.translatable("message.mapperzones.variable_too_long")); return 0; }
         MapperData data = MapperData.get(source.getLevel());
-
-        if (name.length() > 128 || value.length() > 1024) {
-            source.sendFailure(Component.translatable("message.mapperzones.variable_too_long"));
-            return 0;
-        }
-        if (scope.equals("global")) {
-            data.globalVars.put(name, value);
-        } else if (scope.equals("player")) {
-            ServerPlayer player = source.getPlayerOrException();
-            data.playerVars.computeIfAbsent(player.getUUID(), ignored -> new java.util.LinkedHashMap<>()).put(name, value);
-        } else {
-            source.sendFailure(Component.translatable("message.mapperzones.invalid_scope"));
-            return 0;
-        }
+        for (ServerPlayer target : targets) data.playerVars.computeIfAbsent(target.getUUID(), ignored -> new java.util.LinkedHashMap<>()).put(name, value);
         data.dirty();
-        source.sendSuccess(() -> Component.translatable("message.mapperzones.variable_set", scope, name), false);
-        return 1;
+        source.sendSuccess(() -> Component.literal("Set player variable " + name + " for " + targets.size() + " player(s)."), false);
+        if (source.getEntity() instanceof ServerPlayer p) ModNetwork.sync(p);
+        return targets.size();
     }
 
-    private static int getVariable(CommandSourceStack source, String scope, String name) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int setVariable(CommandSourceStack source, String scope, ServerPlayer target, String name, String value) {
         MapperData data = MapperData.get(source.getLevel());
-        String value;
-
-        if (scope.equals("global")) {
-            value = data.globalVars.get(name);
-        } else if (scope.equals("player")) {
-            ServerPlayer player = source.getPlayerOrException();
-            value = data.playerVars.getOrDefault(player.getUUID(), Map.of()).get(name);
-        } else {
-            value = null;
-        }
-        if (value == null) {
-            source.sendFailure(Component.translatable("message.mapperzones.variable_not_found", name));
-            return 0;
-        }
-        source.sendSuccess(() -> Component.translatable("message.mapperzones.variable_value", name, value), false);
+        if (name.length() > 128 || value.length() > 1024) { source.sendFailure(Component.translatable("message.mapperzones.variable_too_long")); return 0; }
+        if (scope.equals("global")) data.globalVars.put(name, value);
+        else data.playerVars.computeIfAbsent(target.getUUID(), ignored -> new java.util.LinkedHashMap<>()).put(name, value);
+        data.dirty();
+        source.sendSuccess(() -> Component.literal("Set " + scope + " variable " + name + (target == null ? "" : " for " + target.getGameProfile().getName())), false);
+        if (source.getEntity() instanceof ServerPlayer p) ModNetwork.sync(p);
         return 1;
     }
 
-    private static int removeVariable(CommandSourceStack source, String scope, String name) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int getVariable(CommandSourceStack source, String scope, ServerPlayer target, String name) {
+        MapperData data = MapperData.get(source.getLevel());
+        String value = scope.equals("global") ? data.globalVars.get(name) : data.playerVars.getOrDefault(target.getUUID(), Map.of()).get(name);
+        if (value == null) { source.sendFailure(Component.translatable("message.mapperzones.variable_not_found", name)); return 0; }
+        source.sendSuccess(() -> Component.literal(name + " = " + value), false);
+        return 1;
+    }
+
+    private static int getForTargets(CommandSourceStack source, Collection<ServerPlayer> targets, String name) {
+        MapperData data = MapperData.get(source.getLevel()); int found = 0;
+        for (ServerPlayer target : targets) {
+            String value = data.playerVars.getOrDefault(target.getUUID(), Map.of()).get(name);
+            if (value == null) source.sendFailure(Component.literal("Variable not found for " + target.getGameProfile().getName() + ": " + name));
+            else { source.sendSuccess(() -> Component.literal(target.getGameProfile().getName() + ": " + name + " = " + value), false); found++; }
+        }
+        return found;
+    }
+
+    private static int removeVariable(CommandSourceStack source, String scope, ServerPlayer target, String name) {
         MapperData data = MapperData.get(source.getLevel());
         boolean removed;
         if (scope.equals("global")) removed = data.globalVars.remove(name) != null;
-        else if (scope.equals("player")) {
-            ServerPlayer player = source.getPlayerOrException();
-            Map<String, String> vars = data.playerVars.get(player.getUUID());
-            removed = vars != null && vars.remove(name) != null;
-            if (vars != null && vars.isEmpty()) data.playerVars.remove(player.getUUID());
-        } else {
-            source.sendFailure(Component.translatable("message.mapperzones.invalid_scope")); return 0;
-        }
+        else { Map<String,String> vars = data.playerVars.get(target.getUUID()); removed = vars != null && vars.remove(name) != null; if (vars != null && vars.isEmpty()) data.playerVars.remove(target.getUUID()); }
         if (!removed) { source.sendFailure(Component.translatable("message.mapperzones.variable_not_found", name)); return 0; }
-        data.dirty();
-        source.sendSuccess(() -> Component.literal("Removed variable " + name + " (" + scope + ")"), false);
+        data.dirty(); source.sendSuccess(() -> Component.literal("Removed " + scope + " variable " + name), false);
+        if (source.getEntity() instanceof ServerPlayer p) ModNetwork.sync(p);
         return 1;
     }
 
-    private static int addVariable(CommandSourceStack source, String scope, String name, double amount) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        MapperData data = MapperData.get(source.getLevel());
-        try {
-            if (scope.equals("global")) {
-                double updated = Double.parseDouble(data.globalVars.getOrDefault(name, "0")) + amount;
-                data.globalVars.put(name, Double.toString(updated));
-            } else if (scope.equals("player")) {
-                ServerPlayer player = source.getPlayerOrException();
-                Map<String, String> variables = data.playerVars.computeIfAbsent(player.getUUID(), ignored -> new java.util.LinkedHashMap<>());
-                double updated = Double.parseDouble(variables.getOrDefault(name, "0")) + amount;
-                variables.put(name, Double.toString(updated));
-            } else {
-                source.sendFailure(Component.translatable("message.mapperzones.invalid_scope"));
-                return 0;
-            }
-            data.dirty();
-            source.sendSuccess(() -> Component.translatable("message.mapperzones.variable_added", name), false);
-            return 1;
-        } catch (NumberFormatException exception) {
-            source.sendFailure(Component.translatable("message.mapperzones.variable_add_failed", exception.getMessage()));
-            return 0;
+    private static int removeForTargets(CommandSourceStack source, Collection<ServerPlayer> targets, String name) {
+        MapperData data = MapperData.get(source.getLevel()); int removed = 0;
+        for (ServerPlayer target : targets) {
+            Map<String,String> vars = data.playerVars.get(target.getUUID());
+            if (vars != null && vars.remove(name) != null) { removed++; if (vars.isEmpty()) data.playerVars.remove(target.getUUID()); }
         }
+        if (removed == 0) { source.sendFailure(Component.translatable("message.mapperzones.variable_not_found", name)); return 0; }
+        data.dirty(); final int removedCount = removed;
+        source.sendSuccess(() -> Component.literal("Removed player variable " + name + " for " + removedCount + " player(s)."), false);
+        if (source.getEntity() instanceof ServerPlayer p) ModNetwork.sync(p);
+        return removedCount;
+    }
+
+    private static int addVariable(CommandSourceStack source, String scope, ServerPlayer target, String name, double amount) {
+        MapperData data = MapperData.get(source.getLevel());
+        Map<String,String> vars = scope.equals("global") ? data.globalVars : data.playerVars.computeIfAbsent(target.getUUID(), ignored -> new java.util.LinkedHashMap<>());
+        try { vars.put(name, Double.toString(Double.parseDouble(vars.getOrDefault(name, "0")) + amount)); }
+        catch (NumberFormatException ex) { source.sendFailure(Component.translatable("message.mapperzones.variable_add_failed", ex.getMessage())); return 0; }
+        data.dirty(); source.sendSuccess(() -> Component.literal("Updated " + scope + " variable " + name), false);
+        if (source.getEntity() instanceof ServerPlayer p) ModNetwork.sync(p);
+        return 1;
+    }
+
+    private static int addForTargets(CommandSourceStack source, Collection<ServerPlayer> targets, String name, double amount) {
+        MapperData data = MapperData.get(source.getLevel());
+        for (ServerPlayer target : targets) {
+            Map<String,String> vars = data.playerVars.computeIfAbsent(target.getUUID(), ignored -> new java.util.LinkedHashMap<>());
+            try { vars.put(name, Double.toString(Double.parseDouble(vars.getOrDefault(name, "0")) + amount)); }
+            catch (NumberFormatException ex) { source.sendFailure(Component.literal("Cannot add to " + name + " for " + target.getGameProfile().getName() + ": not a number.")); return 0; }
+        }
+        data.dirty(); source.sendSuccess(() -> Component.literal("Updated player variable " + name + " for " + targets.size() + " player(s)."), false);
+        if (source.getEntity() instanceof ServerPlayer p) ModNetwork.sync(p);
+        return targets.size();
     }
 
     private static TriggerZone findZone(MapperData data, String name) {

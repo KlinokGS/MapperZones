@@ -207,5 +207,14 @@
   "screen.mapperzones.action_helper.block_open_notes": "Пример: blockAt(100,64,200).open = true",
   "screen.mapperzones.action_helper.block_other_description": "Изменить lit, axis или extended, если выбранный блок поддерживает соответствующее свойство.",
   "screen.mapperzones.action_helper.block_other_notes": "Примеры: blockAt(100,64,200).lit = true; blockAt(100,64,200).axis = x; blockAt(100,64,200).extended = false. Недопустимое значение будет записано в журнал.",
-  "screen.mapperzones.settings.errors_chat": "Ошибки действий и условий в чат: %s"
+  "screen.mapperzones.settings.errors_chat": "Ошибки действий и условий в чат: %s",
+  "screen.mapperzones.player_select": "Игрок: %s",
+  "screen.mapperzones.player_select_none": "Игрок: (выбрать)",
+  "screen.mapperzones.players_title": "Выбор игрока",
+  "screen.mapperzones.players_hint": "Показаны игроки с сохранёнными переменными и игроки онлайн.",
+  "screen.mapperzones.change_for_all": "Менять для всех: %s",
+  "screen.mapperzones.action_helper.player_vars_description": "Изменить персональную переменную игрока, для которого сработало событие зоны.",
+  "screen.mapperzones.action_helper.player_vars_notes": "Примеры: var.player.quest.set = start; var.player.quest.remove. Если переменная не существовала, она создаётся. remove ничего не делает, если переменной нет.",
+  "screen.mapperzones.help.vars_prefix_desc": "Используйте явный префикс var, чтобы отличать переменные от свойств игрока: var.player.health — переменная, player.health — здоровье игрока.",
+  "screen.mapperzones.help.vars_prefix_example": "Примеры: var.player.quest == \"start\"; var.global.score >= 5; exists(var.player.key)."
 }

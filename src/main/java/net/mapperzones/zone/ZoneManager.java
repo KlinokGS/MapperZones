@@ -261,6 +261,13 @@ public final class ZoneManager {
                 "Condition error for " + playerName + " in zone '" + zone.name + "': " + expression + " (" + detail + ")"));
     }
 
+    private static String normalizeVariableKey(String key) {
+        if (key == null) return "";
+        if (key.regionMatches(true, 0, "var.global.", 0, 11)) return "global." + key.substring(11);
+        if (key.regionMatches(true, 0, "var.player.", 0, 11)) return "player." + key.substring(11);
+        return key;
+    }
+
     private static boolean compareValues(String left, String op, String right) {
         try { return compare(Double.parseDouble(left), op, Double.parseDouble(right)); }
         catch (NumberFormatException ignored) {
@@ -342,7 +349,7 @@ public final class ZoneManager {
                 if (index >= tokens.size()) throw new IllegalArgumentException("Expected variable name in exists(...)");
                 String variableName = tokens.get(index++);
                 if (!take(")")) throw new IllegalArgumentException("Missing ')' after exists(...)");
-                return data.hasVariable(player.getUUID(), variableName);
+                return data.hasVariable(player.getUUID(), normalizeVariableKey(variableName));
             }
             if ((token.startsWith("\"") && token.endsWith("\"")) || (token.startsWith("'") && token.endsWith("'")))
                 return token.substring(1, token.length() - 1).replace("\\\"", "\"").replace("\\'", "'");
@@ -354,6 +361,16 @@ public final class ZoneManager {
 
         private Object resolve(String key) {
             String k = key.toLowerCase(Locale.ROOT);
+            if (k.startsWith("var.global.")) {
+                String name = key.substring("var.global.".length());
+                if (!data.globalVars.containsKey(name)) throw new IllegalArgumentException("Unknown global variable: " + name);
+                return data.globalVars.get(name);
+            }
+            if (k.startsWith("var.player.")) {
+                String name = key.substring("var.player.".length());
+                if (!data.playerVars.getOrDefault(player.getUUID(), Map.of()).containsKey(name)) throw new IllegalArgumentException("Unknown player variable: " + name);
+                return data.playerVars.get(player.getUUID()).get(name);
+            }
             if (k.startsWith("blockat(")) return readBlockProperty(key, player.serverLevel());
             return switch (k) {
                 // Backwards-compatible aliases.
@@ -469,6 +486,23 @@ public final class ZoneManager {
     public static void executeAction(ServerPlayer p, MapperData data, String raw) {
         if (raw == null || raw.isBlank()) return;
         String input = raw.trim();
+        java.util.regex.Matcher varSet = java.util.regex.Pattern.compile("(?i)^var\\.player\\.([A-Za-z_][A-Za-z0-9_-]*)\\.set\\s*(?:==|=)\\s*(.+)$").matcher(input);
+        if (varSet.matches()) {
+            String name = varSet.group(1);
+            String value = expandActionValue(p, data, varSet.group(2).trim());
+            Map<String, String> vars = data.playerVars.computeIfAbsent(p.getUUID(), ignored -> new java.util.LinkedHashMap<>());
+            if (!value.equals(vars.get(name))) { vars.put(name, value); data.dirty(); }
+            return;
+        }
+        java.util.regex.Matcher varRemove = java.util.regex.Pattern.compile("(?i)^var\\.player\\.([A-Za-z_][A-Za-z0-9_-]*)\\.remove$").matcher(input);
+        if (varRemove.matches()) {
+            Map<String, String> vars = data.playerVars.get(p.getUUID());
+            if (vars != null && vars.remove(varRemove.group(1)) != null) {
+                if (vars.isEmpty()) data.playerVars.remove(p.getUUID());
+                data.dirty();
+            }
+            return;
+        }
         java.util.regex.Matcher blockSet = java.util.regex.Pattern.compile("(?i)^blockAt\\((-?\\d+)\\s*,\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\)\\.([A-Za-z_]+)\\s*=\\s*([A-Za-z0-9_-]+)$").matcher(input);
         if (blockSet.matches()) {
             setBlockProperty(p, p.serverLevel(), Integer.parseInt(blockSet.group(1)), Integer.parseInt(blockSet.group(2)), Integer.parseInt(blockSet.group(3)), blockSet.group(4), blockSet.group(5));
@@ -629,6 +663,16 @@ public final class ZoneManager {
         for (Property<?> property : state.getProperties())
             if (property.getName().equalsIgnoreCase(name)) return property;
         return null;
+    }
+
+    private static String expandActionValue(ServerPlayer player, MapperData data, String rawValue) {
+        String value = rawValue.trim();
+        if (value.length() >= 2 && value.startsWith("(") && value.endsWith(")")) value = value.substring(1, value.length() - 1).trim();
+        if (value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))))
+            value = value.substring(1, value.length() - 1);
+        value = data.expand(player.getUUID(), value);
+        value = value.replace("${player.name}", player.getGameProfile().getName()).replace("${player.uuid}", player.getUUID().toString());
+        return value;
     }
 
     private static void setBlockProperty(ServerPlayer actor, ServerLevel level, int x, int y, int z, String requested, String value) {

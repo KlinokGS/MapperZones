@@ -207,5 +207,14 @@
   "screen.mapperzones.action_helper.block_open_notes": "Example: blockAt(100,64,200).open = true",
   "screen.mapperzones.action_helper.block_other_description": "Change lit, axis or extended when the selected block supports the property.",
   "screen.mapperzones.action_helper.block_other_notes": "Examples: blockAt(100,64,200).lit = true; blockAt(100,64,200).axis = x; blockAt(100,64,200).extended = false. Invalid values are logged.",
-  "screen.mapperzones.settings.errors_chat": "Action and condition errors in chat: %s"
+  "screen.mapperzones.settings.errors_chat": "Action and condition errors in chat: %s",
+  "screen.mapperzones.player_select": "Player: %s",
+  "screen.mapperzones.player_select_none": "Player: (select)",
+  "screen.mapperzones.players_title": "Select player",
+  "screen.mapperzones.players_hint": "Players with saved variables are listed here; online players are also available.",
+  "screen.mapperzones.change_for_all": "Change for all: %s",
+  "screen.mapperzones.action_helper.player_vars_description": "Change a personal variable for the player whose zone event is running.",
+  "screen.mapperzones.action_helper.player_vars_notes": "Examples: var.player.quest.set = start; var.player.quest.remove. Missing variables are created by set. remove does nothing if the variable is absent.",
+  "screen.mapperzones.help.vars_prefix_desc": "Use the explicit var prefix to distinguish variables from player properties: var.player.health is a variable, while player.health is the player health property.",
+  "screen.mapperzones.help.vars_prefix_example": "Examples: var.player.quest == \"start\"; var.global.score >= 5; exists(var.player.key)."
 }
