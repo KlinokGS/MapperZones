@@ -3,9 +3,13 @@ package net.mapperzones.client;
 import com.google.gson.*;
 
 import java.util.*;
+import net.minecraft.core.BlockPos;
 
 public final class ClientData {
     public static final List<JsonObject> ZONES = new ArrayList<>();
+    public static String SELECTED_ZONE = null;
+    public static BlockPos WAND_FIRST = null;
+    public static BlockPos WAND_SECOND = null;
     public static final Map<String, String> GLOBALS = new LinkedHashMap<>();
     public static final Map<String, String> PLAYER_NAMES = new LinkedHashMap<>();
     public static final Map<String, Map<String, String>> PLAYER_VARIABLES = new LinkedHashMap<>();

@@ -31,7 +31,7 @@
   "screen.mapperzones.cooldown": "Перезарядка (тики)",
   "screen.mapperzones.on": "ВКЛ",
   "screen.mapperzones.off": "ВЫКЛ",
-  "message.mapperzones.wand_given": "Жезл выдан. Выберите им два блока, затем выполните /mapperzones create <имя>.",
+  "message.mapperzones.wand_given": "Жезл выдан. ПКМ по двум точкам — новая зона; ЛКМ по воздуху внутри зоны — перемещение; Shift + ЛКМ — убрать выделение.",
   "message.mapperzones.no_zones": "Зоны ещё не созданы.",
   "message.mapperzones.select_points": "Сначала выберите две точки жезлом выделения зон.",
   "message.mapperzones.zone_exists": "Зона с именем «%s» уже существует.",
@@ -216,5 +216,17 @@
   "screen.mapperzones.action_helper.player_vars_description": "Изменить персональную переменную игрока, для которого сработало событие зоны.",
   "screen.mapperzones.action_helper.player_vars_notes": "Примеры: var.player.quest.set = start; var.player.quest.remove. Если переменная не существовала, она создаётся. remove ничего не делает, если переменной нет.",
   "screen.mapperzones.help.vars_prefix_desc": "Используйте явный префикс var, чтобы отличать переменные от свойств игрока: var.player.health — переменная, player.health — здоровье игрока.",
-  "screen.mapperzones.help.vars_prefix_example": "Примеры: var.player.quest == \"start\"; var.global.score >= 5; exists(var.player.key)."
+  "screen.mapperzones.help.vars_prefix_example": "Примеры: var.player.quest == \"start\"; var.global.score >= 5; exists(var.player.key).",
+  "message.mapperzones.move_zone_missing": "Выбранная зона больше не существует.",
+  "message.mapperzones.move_wrong_dimension": "Перемещать зону можно только в исходном измерении.",
+  "message.mapperzones.zone_moved": "Зона \"%s\" перемещена в координаты %s, %s, %s.",
+  "message.mapperzones.move_no_zone": "Вы не находитесь внутри зоны. Встаньте внутри нужной зоны и нажмите ЛКМ по воздуху, чтобы выбрать её для перемещения.",
+  "message.mapperzones.move_selected": "Зона \"%s\" выбрана для перемещения. Нажмите ПКМ по целевому блоку. Shift + ЛКМ по воздуху отменяет выбор.",
+  "message.mapperzones.cancel_both": "Перемещение отменено, точки новой зоны сброшены.",
+  "message.mapperzones.cancel_move": "Перемещение зоны отменено.",
+  "message.mapperzones.cancel_creation": "Создание новой зоны отменено, точки сброшены.",
+  "message.mapperzones.cancel_nothing": "Нет активного действия для отмены.",
+  "message.mapperzones.move_label": "ПЕРЕНОС",
+  "message.mapperzones.move_preview": "Предпросмотр перемещения",
+  "message.mapperzones.create_preview": "Предпросмотр новой зоны"
 }

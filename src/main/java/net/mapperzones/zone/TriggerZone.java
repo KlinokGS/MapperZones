@@ -14,7 +14,7 @@ public final class TriggerZone {
     }
 
     public final String name;
-    public final BlockPos pos1, pos2;
+    public BlockPos pos1, pos2;
     public ResourceLocation dimension;
     public Shape shape = Shape.BOX;
     public boolean enabled = true, oneTime = false;

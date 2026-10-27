@@ -33,6 +33,9 @@ public final class ModNetwork {
         CHANNEL.registerMessage(id++, UpdateVariable.class, UpdateVariable::encode, UpdateVariable::decode, UpdateVariable::handle);
         CHANNEL.registerMessage(id++, RemoveVariable.class, RemoveVariable::encode, RemoveVariable::decode, RemoveVariable::handle);
         CHANNEL.registerMessage(id++, RequestSync.class, RequestSync::encode, RequestSync::decode, RequestSync::handle);
+        CHANNEL.registerMessage(id++, CancelWand.class, CancelWand::encode, CancelWand::decode, CancelWand::handle);
+        CHANNEL.registerMessage(id++, SelectZoneAtPlayer.class, SelectZoneAtPlayer::encode, SelectZoneAtPlayer::decode, SelectZoneAtPlayer::handle);
+        CHANNEL.registerMessage(id++, ClearWandPreview.class, ClearWandPreview::encode, ClearWandPreview::decode, ClearWandPreview::handle);
     }
 
     public static void openGui(ServerPlayer p) {
@@ -339,5 +342,86 @@ public final class ModNetwork {
 
     public static void requestSync() {
         CHANNEL.sendToServer(new RequestSync());
+    }
+
+    public static void cancelWandSelection() {
+        CHANNEL.sendToServer(new CancelWand());
+    }
+
+    public static void clearWandPreview(ServerPlayer player) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new ClearWandPreview());
+    }
+
+    public record ClearWandPreview() {
+        static void encode(ClearWandPreview m, FriendlyByteBuf b) { }
+        static ClearWandPreview decode(FriendlyByteBuf b) { return new ClearWandPreview(); }
+        static void handle(ClearWandPreview m, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT, () -> () -> {
+                net.mapperzones.client.ClientData.WAND_FIRST = null;
+                net.mapperzones.client.ClientData.WAND_SECOND = null;
+            }));
+            c.get().setPacketHandled(true);
+        }
+    }
+
+
+    public static void selectZoneAtPlayer() {
+        CHANNEL.sendToServer(new SelectZoneAtPlayer());
+    }
+
+    public record SelectZoneAtPlayer() {
+        static void encode(SelectZoneAtPlayer m, FriendlyByteBuf b) { }
+        static SelectZoneAtPlayer decode(FriendlyByteBuf b) { return new SelectZoneAtPlayer(); }
+        static void handle(SelectZoneAtPlayer m, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> {
+                ServerPlayer p = c.get().getSender();
+                if (p == null || !p.getMainHandItem().is(net.mapperzones.item.ModItems.ZONE_WAND.get())) return;
+                MapperData data = MapperData.get(p.serverLevel());
+                BlockPosLike position = new BlockPosLike(p.blockPosition().getX(), p.blockPosition().getY(), p.blockPosition().getZ());
+                TriggerZone match = data.zones.values().stream()
+                        .filter(z -> z.dimension.equals(p.level().dimension().location()))
+                        .filter(z -> position.x >= z.minX() && position.x <= z.maxX()
+                                && position.y >= z.minY() && position.y <= z.maxY()
+                                && position.z >= z.minZ() && position.z <= z.maxZ())
+                        .findFirst().orElse(null);
+                if (match == null) {
+                    p.sendSystemMessage(Component.translatable("message.mapperzones.move_no_zone").withStyle(net.minecraft.ChatFormatting.YELLOW));
+                    return;
+                }
+                UUID playerId = p.getUUID();
+                // Starting a move operation cancels any unfinished zone creation.
+                net.mapperzones.item.ZoneWandItem.FIRST.remove(playerId);
+                net.mapperzones.item.ZoneWandItem.SECOND.remove(playerId);
+                net.mapperzones.item.ZoneWandItem.MOVE_SELECTION.put(playerId, match.name.toLowerCase(Locale.ROOT));
+                sync(p);
+                p.sendSystemMessage(Component.translatable("message.mapperzones.move_selected", match.name).withStyle(net.minecraft.ChatFormatting.AQUA));
+            });
+            c.get().setPacketHandled(true);
+        }
+    }
+
+    private record BlockPosLike(int x, int y, int z) { }
+
+    public record CancelWand() {
+        static void encode(CancelWand m, FriendlyByteBuf b) { }
+        static CancelWand decode(FriendlyByteBuf b) { return new CancelWand(); }
+        static void handle(CancelWand m, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> {
+                ServerPlayer p = c.get().getSender();
+                if (p == null || !p.getMainHandItem().is(net.mapperzones.item.ModItems.ZONE_WAND.get())) return;
+                UUID id = p.getUUID();
+                boolean moving = net.mapperzones.item.ZoneWandItem.MOVE_SELECTION.remove(id) != null;
+                boolean creating = net.mapperzones.item.ZoneWandItem.FIRST.remove(id) != null;
+                creating |= net.mapperzones.item.ZoneWandItem.SECOND.remove(id) != null;
+                if (moving || creating) {
+                    String key = moving && creating ? "message.mapperzones.cancel_both"
+                            : moving ? "message.mapperzones.cancel_move" : "message.mapperzones.cancel_creation";
+                    p.sendSystemMessage(Component.translatable(key).withStyle(net.minecraft.ChatFormatting.YELLOW));
+                } else {
+                    p.sendSystemMessage(Component.translatable("message.mapperzones.cancel_nothing").withStyle(net.minecraft.ChatFormatting.GRAY));
+                }
+            });
+            c.get().setPacketHandled(true);
+        }
     }
 }

@@ -1,22 +1,22 @@
 modLoader="javafml"
-loaderVersion="[47,)"
+loaderVersion="${loader_version_range}"
 license="MIT"
 [[mods]]
-modId="mapperzones"
-version="1.1.1"
-displayName="Mapper Zones"
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
 logoFile="logo.png"
-authors="klinokGS"
-description='''Trigger zones, conditions, actions, and variables for map making'''
-[[dependencies.mapperzones]]
+authors="${mod_authors}"
+description='''${mod_description}'''
+[[dependencies.${mod_id}]]
 modId="forge"
 mandatory=true
-versionRange="[47.2.0,48)"
+versionRange="${forge_version_range}"
 ordering="NONE"
 side="BOTH"
-[[dependencies.mapperzones]]
+[[dependencies.${mod_id}]]
 modId="minecraft"
 mandatory=true
-versionRange="[1.20.1,1.20.2)"
+versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"

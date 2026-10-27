@@ -119,6 +119,8 @@ public final class ZoneCommands {
             data.dirty();
             ZoneWandItem.FIRST.remove(playerId);
             ZoneWandItem.SECOND.remove(playerId);
+            // The preview is client-side state, so explicitly clear it after creation succeeds.
+            ModNetwork.clearWandPreview(player);
             context.getSource().sendSuccess(() -> Component.translatable("message.mapperzones.zone_created", name, zone.getSizeX(), zone.getSizeY(), zone.getSizeZ()), true);
             ModNetwork.sync(player);
             return 1;
@@ -126,7 +128,9 @@ public final class ZoneCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> removeCommand() {
-        return Commands.literal("remove").then(Commands.argument("name", StringArgumentType.word()).suggests((context, builder) -> SharedSuggestionProvider.suggest(MapperData.get(context.getSource().getLevel()).zones.keySet(), builder)).executes(context -> {
+        return Commands.literal("remove").then(Commands.argument("name", StringArgumentType.word())
+                .suggests((context, builder) ->
+                        SharedSuggestionProvider.suggest(MapperData.get(context.getSource().getLevel()).zones.keySet(), builder)).executes(context -> {
             MapperData data = MapperData.get(context.getSource().getLevel());
             String name = StringArgumentType.getString(context, "name");
             TriggerZone removed = data.zones.remove(normalizeName(name));
@@ -143,7 +147,10 @@ public final class ZoneCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> enableCommand() {
-        return Commands.literal("enable").then(Commands.argument("name", StringArgumentType.word()).then(Commands.argument("enabled", BoolArgumentType.bool()).executes(context -> {
+        return Commands.literal("enable").then(Commands.argument("name", StringArgumentType.word())
+                .suggests((context, builder) ->
+                        SharedSuggestionProvider.suggest(MapperData.get(context.getSource().getLevel()).zones.keySet(), builder))
+                .then(Commands.argument("enabled", BoolArgumentType.bool()).executes(context -> {
             MapperData data = MapperData.get(context.getSource().getLevel());
             String name = StringArgumentType.getString(context, "name");
             TriggerZone zone = findZone(data, name);
@@ -162,7 +169,9 @@ public final class ZoneCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> resetCommand() {
-        return Commands.literal("reset").then(Commands.argument("name", StringArgumentType.word()).executes(context -> {
+        return Commands.literal("reset").then(Commands.argument("name", StringArgumentType.word())
+                .suggests((context, builder) ->
+                        SharedSuggestionProvider.suggest(MapperData.get(context.getSource().getLevel()).zones.keySet(), builder)).executes(context -> {
             MapperData data = MapperData.get(context.getSource().getLevel());
             String name = StringArgumentType.getString(context, "name");
             TriggerZone zone = findZone(data, name);
@@ -185,7 +194,12 @@ public final class ZoneCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> shapeCommand() {
-        return Commands.literal("shape").then(Commands.argument("name", StringArgumentType.word()).then(Commands.argument("shape", StringArgumentType.word()).suggests((context, builder) -> SharedSuggestionProvider.suggest(List.of("box", "sphere", "cylinder"), builder)).executes(context -> {
+        return Commands.literal("shape").then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((context, builder) ->
+                                SharedSuggestionProvider.suggest(MapperData.get(context.getSource().getLevel()).zones.keySet(), builder))
+                .then(Commands.argument("shape", StringArgumentType.word())
+                        .suggests((context, builder) ->
+                                SharedSuggestionProvider.suggest(List.of("box", "sphere", "cylinder"), builder)).executes(context -> {
             MapperData data = MapperData.get(context.getSource().getLevel());
             String name = StringArgumentType.getString(context, "name");
             TriggerZone zone = findZone(data, name);
@@ -207,7 +221,12 @@ public final class ZoneCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> actionCommand() {
-        return Commands.literal("action").then(Commands.argument("name", StringArgumentType.word()).then(Commands.argument("event", StringArgumentType.word()).then(Commands.argument("action", StringArgumentType.greedyString()).executes(context -> {
+        return Commands.literal("action").then(Commands.argument("name", StringArgumentType.word())
+                .suggests((context, builder) ->
+                        SharedSuggestionProvider.suggest(MapperData.get(context.getSource().getLevel()).zones.keySet(), builder))
+                .then(Commands.argument("event", StringArgumentType.word())
+                .then(Commands.argument("action", StringArgumentType.greedyString())
+                    .executes(context -> {
             MapperData data = MapperData.get(context.getSource().getLevel());
             String name = StringArgumentType.getString(context, "name");
             TriggerZone zone = findZone(data, name);
@@ -241,7 +260,10 @@ public final class ZoneCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> conditionCommand() {
-        return Commands.literal("condition").then(Commands.argument("name", StringArgumentType.word()).then(Commands.argument("condition", StringArgumentType.greedyString()).executes(context -> {
+        return Commands.literal("condition").then(Commands.argument("name", StringArgumentType.word())
+                .suggests((context, builder) ->
+                        SharedSuggestionProvider.suggest(MapperData.get(context.getSource().getLevel()).zones.keySet(), builder))
+                .then(Commands.argument("condition", StringArgumentType.greedyString()).executes(context -> {
             MapperData data = MapperData.get(context.getSource().getLevel());
             String name = StringArgumentType.getString(context, "name");
             TriggerZone zone = findZone(data, name);
@@ -264,7 +286,9 @@ public final class ZoneCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> exportCommand() {
-        return Commands.literal("export").then(Commands.argument("name", StringArgumentType.word()).executes(context -> {
+        return Commands.literal("export").then(Commands.argument("name", StringArgumentType.word())
+                .suggests((context, builder) ->
+                        SharedSuggestionProvider.suggest(MapperData.get(context.getSource().getLevel()).zones.keySet(), builder)).executes(context -> {
             MapperData data = MapperData.get(context.getSource().getLevel());
             String name = StringArgumentType.getString(context, "name");
             TriggerZone zone = findZone(data, name);

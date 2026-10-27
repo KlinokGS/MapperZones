@@ -31,7 +31,7 @@
   "screen.mapperzones.cooldown": "Cooldown (ticks)",
   "screen.mapperzones.on": "ON",
   "screen.mapperzones.off": "OFF",
-  "message.mapperzones.wand_given": "Zone wand given. Use it on two blocks, then /mapperzones create <name>.",
+  "message.mapperzones.wand_given": "Wand given. RMB on two points — create a zone; LMB on air inside a zone — move it; Shift + LMB — clear selection.",
   "message.mapperzones.no_zones": "No zones created.",
   "message.mapperzones.select_points": "Select two points with the zone wand first.",
   "message.mapperzones.zone_exists": "A zone with the name '%s' already exists.",
@@ -216,5 +216,17 @@
   "screen.mapperzones.action_helper.player_vars_description": "Change a personal variable for the player whose zone event is running.",
   "screen.mapperzones.action_helper.player_vars_notes": "Examples: var.player.quest.set = start; var.player.quest.remove. Missing variables are created by set. remove does nothing if the variable is absent.",
   "screen.mapperzones.help.vars_prefix_desc": "Use the explicit var prefix to distinguish variables from player properties: var.player.health is a variable, while player.health is the player health property.",
-  "screen.mapperzones.help.vars_prefix_example": "Examples: var.player.quest == \"start\"; var.global.score >= 5; exists(var.player.key)."
+  "screen.mapperzones.help.vars_prefix_example": "Examples: var.player.quest == \"start\"; var.global.score >= 5; exists(var.player.key).",
+  "message.mapperzones.move_zone_missing": "The selected zone no longer exists.",
+  "message.mapperzones.move_wrong_dimension": "Move the zone in its original dimension.",
+  "message.mapperzones.zone_moved": "Moved zone \"%s\" to %s, %s, %s.",
+  "message.mapperzones.move_no_zone": "You are not standing inside a zone. Stand inside the zone and left-click air to select it for moving.",
+  "message.mapperzones.move_selected": "Selected zone \"%s\" for moving. Right-click a destination block to move it. Shift+left-click air cancels.",
+  "message.mapperzones.cancel_both": "Cancelled zone moving and cleared new-zone points.",
+  "message.mapperzones.cancel_move": "Zone moving cancelled.",
+  "message.mapperzones.cancel_creation": "New-zone creation cancelled; points cleared.",
+  "message.mapperzones.cancel_nothing": "Nothing to cancel.",
+  "message.mapperzones.move_label": "MOVE",
+  "message.mapperzones.move_preview": "Move preview",
+  "message.mapperzones.create_preview": "New zone preview"
 }

@@ -64,12 +64,14 @@ public final class ZoneRenderer {
                 int maxChunkDistance = MapperZonesSettings.highlightDistance();
                 if ((long) dx * dx + (long) dz * dz > (long) maxChunkDistance * maxChunkDistance) continue;
                 boolean enabled = !zone.has("enabled") || zone.get("enabled").getAsBoolean();
-                float red = enabled ? 0.1F : 1.0F;
-                float green = enabled ? 1.0F : 0.15F;
-                float blue = 0.2F;
+                boolean selected = zone.has("name") && ClientData.SELECTED_ZONE != null
+                        && zone.get("name").getAsString().equalsIgnoreCase(ClientData.SELECTED_ZONE);
+                float red = selected ? 1.0F : (enabled ? 0.1F : 1.0F);
+                float green = selected ? 0.65F : (enabled ? 1.0F : 0.15F);
+                float blue = selected ? 0.05F : 0.2F;
                 String zoneName = zone.has("name") ? zone.get("name").getAsString() : "Unnamed zone";
                 if (MapperZonesSettings.showZoneNames() && camera.distanceToSqr((minX + maxX) / 2.0, maxY + 0.25, (minZ + maxZ) / 2.0) <= 48.0 * 48.0) {
-                    String labelText = enabled ? zoneName : zoneName + " [OFF]";
+                    String labelText = selected ? zoneName + " [" + Component.translatable("message.mapperzones.move_label").getString() + "]" : (enabled ? zoneName : zoneName + " [OFF]");
                     labels.add(new ZoneLabel((minX + maxX) / 2.0, maxY + 0.25, (minZ + maxZ) / 2.0, labelText, enabled ? 0xFFB8FFB8 : 0xFFFF7777));
                 }
                 String shape = zone.has("shape") ? zone.get("shape").getAsString() : "BOX";
@@ -110,6 +112,63 @@ public final class ZoneRenderer {
                 }
             } catch (Exception ignored) {
                 // Malformed synced data should not interrupt world rendering.
+            }
+        }
+        // Preview the zone volume after both creation points have been selected.
+        if (ClientData.WAND_FIRST != null && ClientData.WAND_SECOND != null) {
+            var firstPoint = ClientData.WAND_FIRST;
+            var secondPoint = ClientData.WAND_SECOND;
+            double createMinX = Math.min(firstPoint.getX(), secondPoint.getX());
+            double createMinY = Math.min(firstPoint.getY(), secondPoint.getY());
+            double createMinZ = Math.min(firstPoint.getZ(), secondPoint.getZ());
+            double createMaxX = Math.max(firstPoint.getX(), secondPoint.getX()) + 1.0;
+            double createMaxY = Math.max(firstPoint.getY(), secondPoint.getY()) + 1.0;
+            double createMaxZ = Math.max(firstPoint.getZ(), secondPoint.getZ()) + 1.0;
+            LevelRenderer.renderLineBox(pose, lines, createMinX, createMinY, createMinZ,
+                    createMaxX, createMaxY, createMaxZ, 0.15F, 0.85F, 1.0F, 1.0F);
+            if (MapperZonesSettings.showZoneNames()) {
+                String previewLabel = Component.translatable("message.mapperzones.create_preview").getString();
+                labels.add(new ZoneLabel((createMinX + createMaxX) / 2.0, createMaxY + 0.25,
+                        (createMinZ + createMaxZ) / 2.0, previewLabel, 0xFF66DDFF));
+            }
+        }
+
+        // Preview the selected zone at the current target block before the player confirms with RMB.
+        if (ClientData.SELECTED_ZONE != null) {
+            JsonObject selectedZone = ClientData.find(ClientData.SELECTED_ZONE);
+            if (selectedZone != null) {
+                try {
+                    var hit = minecraft.player.pick(5.0D, 0.0F, false);
+                    if (hit instanceof net.minecraft.world.phys.BlockHitResult blockHit
+                            && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                            && (!selectedZone.has("dimension") || selectedZone.get("dimension").getAsString().equals(minecraft.level.dimension().location().toString()))) {
+                        JsonObject a = selectedZone.getAsJsonObject("pos1");
+                        JsonObject b = selectedZone.getAsJsonObject("pos2");
+                        int sx = Math.abs(a.get("x").getAsInt() - b.get("x").getAsInt()) + 1;
+                        int sy = Math.abs(a.get("y").getAsInt() - b.get("y").getAsInt()) + 1;
+                        int sz = Math.abs(a.get("z").getAsInt() - b.get("z").getAsInt()) + 1;
+                        var target = blockHit.getBlockPos();
+                        // Treat the targeted block as the floor: preview begins one block above it.
+                        int targetY = target.getY() + 1;
+                        int minX = target.getX(), minY = targetY, minZ = target.getZ();
+                        // Match server placement: extend the zone forward, away from the player, without rotation.
+                        switch (minecraft.player.getDirection()) {
+                            case NORTH -> minZ = target.getZ() - sz + 1;
+                            case SOUTH -> minZ = target.getZ();
+                            case WEST -> minX = target.getX() - sx + 1;
+                            case EAST -> minX = target.getX();
+                        }
+                        int oldPos2Y = b.get("y").getAsInt();
+                        if (targetY > oldPos2Y) minY = targetY - sy + 1;
+                        double x1 = minX, y1 = minY, z1 = minZ;
+                        double x2 = minX + sx, y2 = minY + sy, z2 = minZ + sz;
+                        LevelRenderer.renderLineBox(pose, lines, x1, y1, z1, x2, y2, z2, 1.0F, 0.55F, 0.05F, 1.0F);
+                        if (MapperZonesSettings.showZoneNames()) {
+                            String previewLabel = Component.translatable("message.mapperzones.move_preview").getString();
+                            labels.add(new ZoneLabel((x1 + x2) / 2.0, y2 + 0.25, (z1 + z2) / 2.0, previewLabel, 0xFFFFAA33));
+                        }
+                    }
+                } catch (Exception ignored) { }
             }
         }
         buffers.endBatch(RenderType.lines());
