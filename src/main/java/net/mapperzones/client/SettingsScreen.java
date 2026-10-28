@@ -12,10 +12,12 @@ public final class SettingsScreen extends Screen {
     private Button commandButton;
     private Button namesButton;
     private Button errorsButton;
+    private Button suggestionsButton;
     private int draftDistance;
     private boolean draftShortCommand;
     private boolean draftZoneNames;
     private boolean draftActionErrorsInChat;
+    private boolean draftCodeSuggestions;
 
     public SettingsScreen(Screen parent) {
         super(Component.translatable("screen.mapperzones.settings.title"));
@@ -25,6 +27,7 @@ public final class SettingsScreen extends Screen {
         draftShortCommand = MapperZonesSettings.shortCommandEnabled();
         draftZoneNames = MapperZonesSettings.showZoneNames();
         draftActionErrorsInChat = MapperZonesSettings.actionErrorsInChat();
+        draftCodeSuggestions = MapperZonesSettings.codeSuggestionsEnabled();
     }
 
     @Override
@@ -32,7 +35,7 @@ public final class SettingsScreen extends Screen {
         int center = width / 2;
         int buttonWidth = Math.min(300, width - 40);
         int left = center - buttonWidth / 2;
-        int top = Math.max(48, height / 2 - 78);
+        int top = Math.max(40, height / 2 - 92);
 
         distanceButton = addRenderableWidget(Button.builder(distanceLabel(), b -> {
             draftDistance = switch (draftDistance) { case 4 -> 8; case 8 -> 12; case 12 -> 16; default -> 4; };
@@ -41,16 +44,21 @@ public final class SettingsScreen extends Screen {
         commandButton = addRenderableWidget(Button.builder(commandLabel(), b -> {
             draftShortCommand = !draftShortCommand;
             b.setMessage(commandLabel());
-        }).bounds(left, top + 34, buttonWidth, 24).build());
+        }).bounds(left, top + 30, buttonWidth, 24).build());
         namesButton = addRenderableWidget(Button.builder(namesLabel(), b -> {
             draftZoneNames = !draftZoneNames;
             b.setMessage(namesLabel());
-        }).bounds(left, top + 68, buttonWidth, 24).build());
+        }).bounds(left, top + 60, buttonWidth, 24).build());
 
         errorsButton = addRenderableWidget(Button.builder(errorsLabel(), b -> {
             draftActionErrorsInChat = !draftActionErrorsInChat;
             b.setMessage(errorsLabel());
-        }).bounds(left, top + 102, buttonWidth, 24).build());
+        }).bounds(left, top + 90, buttonWidth, 24).build());
+
+        suggestionsButton = addRenderableWidget(Button.builder(suggestionsLabel(), b -> {
+            draftCodeSuggestions = !draftCodeSuggestions;
+            b.setMessage(suggestionsLabel());
+        }).bounds(left, top + 120, buttonWidth, 24).build());
 
         int bottomY = height - 36;
         int gap = 8;
@@ -61,6 +69,7 @@ public final class SettingsScreen extends Screen {
                 MapperZonesSettings.setShortCommandEnabled(draftShortCommand);
                 MapperZonesSettings.setShowZoneNames(draftZoneNames);
                 MapperZonesSettings.setActionErrorsInChat(draftActionErrorsInChat);
+                MapperZonesSettings.setCodeSuggestionsEnabled(draftCodeSuggestions);
                 MapperZonesSettings.save();
                 minecraft.setScreen(parent);
             } catch (RuntimeException exception) {
@@ -72,6 +81,7 @@ public final class SettingsScreen extends Screen {
             draftShortCommand = MapperZonesSettings.shortCommandEnabled();
             draftZoneNames = MapperZonesSettings.showZoneNames();
             draftActionErrorsInChat = MapperZonesSettings.actionErrorsInChat();
+            draftCodeSuggestions = MapperZonesSettings.codeSuggestionsEnabled();
             minecraft.setScreen(parent);
         }).bounds(left + half + gap, bottomY, half, 20).build());
     }
@@ -84,6 +94,9 @@ public final class SettingsScreen extends Screen {
     }
     private Component errorsLabel() {
         return Component.translatable("screen.mapperzones.settings.errors_chat", toggle(draftActionErrorsInChat));
+    }
+    private Component suggestionsLabel() {
+        return Component.translatable("screen.mapperzones.settings.code_suggestions", toggle(draftCodeSuggestions));
     }
     private Component namesLabel() {
         return Component.translatable("screen.mapperzones.settings.zone_names", toggle(draftZoneNames));

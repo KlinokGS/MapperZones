@@ -12,12 +12,14 @@ import java.util.*;
 
 /** Responsive, compact zone editor. Long action/condition lists live on their own screens. */
 public class ZoneEditScreen extends Screen {
+    private static final List<String> SHAPE_VALUES = List.of("BOX", "SPHERE", "CYLINDER");
     private final Screen parent;
     private final String zoneName;
     private final JsonObject source;
     private EditBox shape, interval, cooldown;
     private boolean enabled = true, oneTime = false;
     private String enterText, exitText, stayText, conditionsText;
+    private int shapeIndex;
 
     public ZoneEditScreen(Screen parent, String name) {
         super(Component.translatable("screen.mapperzones.edit", name));
@@ -28,6 +30,9 @@ public class ZoneEditScreen extends Screen {
         this.exitText = list(source, "exitActions");
         this.stayText = list(source, "stayActions");
         this.conditionsText = list(source, "conditions");
+        String initial = source.has("shape") ? source.get("shape").getAsString() : "BOX";
+        int idx = SHAPE_VALUES.indexOf(initial);
+        this.shapeIndex = Math.max(idx, 0);;
     }
 
     @Override protected void init() {
@@ -37,9 +42,18 @@ public class ZoneEditScreen extends Screen {
             return;
         }
         // Compact layout: keep every control on-screen even at Minecraft GUI scale 4.
-        shape = field(x, 29, w, Component.translatable("screen.mapperzones.shape_hint").getString(), source.has("shape") ? source.get("shape").getAsString() : "BOX");
+
+        addRenderableWidget(Button.builder(shapeLabel(), button -> {
+            shapeIndex = (shapeIndex + 1) % SHAPE_VALUES.size();
+            String newValue = SHAPE_VALUES.get(shapeIndex);
+            button.setMessage(Component.translatable("screen.mapperzones.shape_selected", newValue));
+
+            source.addProperty("shape", newValue);
+        }).bounds(x, 29, w, 20).build());
+
         enabled = !source.has("enabled") || source.get("enabled").getAsBoolean();
         oneTime = source.has("oneTime") && source.get("oneTime").getAsBoolean();
+
         int half = (w - 6) / 2;
         addRenderableWidget(Button.builder(enabledLabel(), b -> { enabled = !enabled; b.setMessage(enabledLabel()); }).bounds(x, 56, half, 20).build());
         addRenderableWidget(Button.builder(oneTimeLabel(), b -> { oneTime = !oneTime; b.setMessage(oneTimeLabel()); }).bounds(x + half + 6, 56, half, 20).build());
@@ -58,6 +72,7 @@ public class ZoneEditScreen extends Screen {
         addRenderableWidget(Button.builder(Component.translatable("screen.mapperzones.back"), b -> minecraft.setScreen(parent)).bounds(x + w - saveW, bottom, saveW, 20).build());
     }
 
+    private Component shapeLabel() { return Component.translatable("screen.mapperzones.shape_selected", SHAPE_VALUES.get(shapeIndex)); }
     private Component enabledLabel() { return Component.translatable("screen.mapperzones.enabled", enabled); }
     private Component oneTimeLabel() { return Component.translatable("screen.mapperzones.one_time", oneTime); }
     private Component sectionLabel(String labelKey, String text) {
@@ -86,7 +101,7 @@ public class ZoneEditScreen extends Screen {
 
     private void save() {
         try {
-            String sh=shape.getValue().trim().toUpperCase(Locale.ROOT);
+            String sh = SHAPE_VALUES.get(shapeIndex);
             if (!List.of("BOX","SPHERE","CYLINDER").contains(sh)) throw new IllegalArgumentException(Component.translatable("screen.mapperzones.invalid_shape_value").getString());
             int si=Math.max(1,Math.min(72000,Integer.parseInt(interval.getValue()))), cd=Math.max(0,Math.min(72000,Integer.parseInt(cooldown.getValue())));
             source.addProperty("shape",sh); source.addProperty("enabled",enabled); source.addProperty("oneTime",oneTime); source.addProperty("stayInterval",si); source.addProperty("cooldownTicks",cd);

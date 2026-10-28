@@ -9,10 +9,12 @@ MapperZones is a map-making tool for creating trigger zones and configuring even
 ## Commands
 
 - `/mapperzones` — open the main GUI.
-- `/mapperzones gui` — open the main GUI.
+- `/mapperzones wand` — get wand for creating and moving zones.
 - `/mz` — short alias for `/mapperzones` when enabled in settings.
 - `/mapperzones reset` — reset zone event state.
+- `/mapperzones enable` — on / off zone.
 - Use the in-game GUI to create and edit zones, configure their conditions, and manage variables.
+- Type `/mapperzones ` and you will see more commands. For example, export, variables and etc.
 
 > The `/mz` alias can be disabled in the in-game settings if it conflicts with another mod or server command.
 
@@ -29,7 +31,7 @@ action.exit: time >= 12000
 Variable comparisons can use expressions such as:
 
 ```text
-global.score >= 5 && player.quest == "started"
+global.score >= 5 && var.player.quest == "started"
 ```
 
 - `global.<name>` — a shared server-side variable.
@@ -47,27 +49,13 @@ The settings screen lets you configure:
 - Zone-boundary render distance: 4, 8, 12, or 16 chunks (default: 8).
 - Whether the `/mz` command alias is enabled (default: on).
 - Whether zone names are shown above their boundaries (default: on).
+- Autocomplete coding helper setting (default: on).
 
 Settings are stored in:
 
 ```text
 config/mapperzones/settings.json
 ```
-
-## What's included
-
-- In-game GUI for managing trigger zones.
-- Visual zone boundaries and zone names.
-- Configurable render distance for zone highlighting.
-- Zone events, including entering and exiting zones, and stay-time checks.
-- `oneTime` behavior for one-time event execution.
-- Condition expressions and variable-existence checks.
-- Server-side `global` and per-player `player` variables.
-- Variable management through the GUI.
-- Localized interface and condition help.
-- Optional `/mz` command alias.
-- In-game settings screen.
-
 ---
 
 # RU: MapperZones — Триггерные зоны для карт Minecraft
@@ -77,10 +65,12 @@ MapperZones — инструмент для создания триггерны�
 ## Команды
 
 - `/mapperzones` — открыть главное GUI.
-- `/mapperzones gui` — открыть главное GUI.
+- `/mapperzones wand` — получать жезл создания и переноса зон.
 - `/mz` — короткий псевдоним `/mapperzones`, если он включён в настройках.
 - `/mapperzones reset` — сбросить состояние событий зон.
+- `/mapperzones enable` — вкл. / выкл. зону.
 - Создавайте и редактируйте зоны, настраивайте условия и управляйте переменными через внутриигровой интерфейс.
+- Напишите `/mapperzones ` и вы увидите больше команд. Например, export, variables и т.д.
 
 > Псевдоним `/mz` можно отключить в настройках мода, если он конфликтует с другой командой или модом на сервере.
 
@@ -97,7 +87,7 @@ action.exit: time >= 12000
 Сравнения переменных могут выглядеть так:
 
 ```text
-global.score >= 5 && player.quest == "started"
+global.score >= 5 && var.player.quest == "started"
 ```
 
 - `global.<имя>` — общая серверная переменная.
@@ -112,26 +102,13 @@ global.score >= 5 && player.quest == "started"
 
 В меню настроек доступны следующие параметры:
 
-- Дальность отображения границ зон: 4, 8, 12 или 16 чанков (по умолчанию — 8).
-- Включение короткой команды `/mz` (по умолчанию — включена).
-- Отображение названий зон над границами (по умолчанию — включено).
+- Дальность отображения границ зон: 4, 8, 12 или 16 чанков (по умолчанию: 8).
+- Включение короткой команды `/mz` (по умолчанию: вкл).
+- Отображение названий зон над границами (по умолчанию: вкл).
+- Помощь по автодополнению кода (по умолчанию: вкл).
 
 Настройки хранятся в файле:
 
 ```text
 config/mapperzones/settings.json
 ```
-
-## Что уже реализовано
-
-- Внутриигровой GUI для управления триггерными зонами.
-- Визуальные границы зон и их названия.
-- Настраиваемая дальность отображения границ.
-- События зон, включая вход, выход и проверку времени пребывания.
-- Режим `oneTime` для однократного выполнения событий.
-- Выражения условий и проверка существования переменных.
-- Серверные переменные `global` и персональные переменные `player`.
-- Управление переменными через GUI.
-- Локализация интерфейса и справка по условиям.
-- Необязательный псевдоним команды `/mz`.
-- Внутриигровое меню настроек.

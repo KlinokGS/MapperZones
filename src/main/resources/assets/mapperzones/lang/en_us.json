@@ -23,6 +23,7 @@
   "screen.mapperzones.save": "Save",
   "screen.mapperzones.action_syntax": "Action syntax",
   "screen.mapperzones.shape_hint": "Shape (BOX/SPHERE/CYLINDER)",
+  "screen.mapperzones.shape_selected": "Selected shape: %s",
   "screen.mapperzones.enter_actions": "Enter actions (one per line)",
   "screen.mapperzones.exit_actions": "Exit actions (one per line)",
   "screen.mapperzones.stay_actions": "Stay actions (one per line)",
@@ -228,5 +229,6 @@
   "message.mapperzones.cancel_nothing": "Nothing to cancel.",
   "message.mapperzones.move_label": "MOVE",
   "message.mapperzones.move_preview": "Move preview",
-  "message.mapperzones.create_preview": "New zone preview"
+  "message.mapperzones.create_preview": "New zone preview",
+  "screen.mapperzones.settings.code_suggestions": "Code suggestions: %s"
 }

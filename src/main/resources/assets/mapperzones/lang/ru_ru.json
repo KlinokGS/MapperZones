@@ -23,6 +23,7 @@
   "screen.mapperzones.save": "Сохранить",
   "screen.mapperzones.action_syntax": "Синтаксис действий",
   "screen.mapperzones.shape_hint": "Форма (BOX/SPHERE/CYLINDER)",
+  "screen.mapperzones.shape_selected": "Текущая форма: %s",
   "screen.mapperzones.enter_actions": "Действия при входе (по одному на строку)",
   "screen.mapperzones.exit_actions": "Действия при выходе (по одному на строку)",
   "screen.mapperzones.stay_actions": "Действия при нахождении внутри (по одному на строку)",
@@ -228,5 +229,6 @@
   "message.mapperzones.cancel_nothing": "Нет активного действия для отмены.",
   "message.mapperzones.move_label": "ПЕРЕНОС",
   "message.mapperzones.move_preview": "Предпросмотр перемещения",
-  "message.mapperzones.create_preview": "Предпросмотр новой зоны"
+  "message.mapperzones.create_preview": "Предпросмотр новой зоны",
+  "screen.mapperzones.settings.code_suggestions": "Подсказки кода: %s"
 }
